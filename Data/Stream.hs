@@ -61,3 +61,21 @@ instance Functor Stream where
       Done      -> Done
       Skip g'   -> nx' g'
       Some x g' -> (Some (f x) g')
+
+instance Applicative Stream where
+  {-# INLINE [0] pure #-}
+  pure x = Stream nx (Just x) where
+    {-# INLINE [0] nx #-}
+    nx Nothing  = Done
+    nx (Just x) = Some x Nothing
+
+  {-# INLINE [1] liftA2 #-}
+  liftA2 f (Stream nxa sga) (Stream nxb sgb) = Stream nx' (sga, sgb) where
+    {-# INLINE [0] nx' #-}
+    nx' (!a, !b) = case nxa a of
+      Done       -> Done
+      Skip ag    -> nx' (ag, b)
+      Some a' ag -> case nxb b of
+        Done       -> nx' (ag, sgb)
+        Skip bg    -> nx' (a, bg)
+        Some b' bg -> Some (f a' b') (a, bg)

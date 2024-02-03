@@ -9,6 +9,7 @@ main = defaultMain $ testGroup "Stream"
   [ toFromList
   , semigroup
   , functor
+  , applicative
   ]
 
 {-# INLINE oneFive #-}
@@ -57,4 +58,19 @@ monoid = testGroup "Monoid"
 functor = testGroup "Functor"
   [ testCase "Identity" $ (toList $ fmap id oneFiveS) @?= oneFive
   , testCase "Composition" $ (toList $ fmap ((+) 1 . (*) 2) oneFiveS) @?= (toList $ fmap ((+) 1) . fmap ((*) 2) $ oneFiveS)
+  ]
+
+timesTwo :: Stream (Int -> Int)
+timesTwo = pure $ (*) 2
+
+timesFour :: Stream (Int -> Int)
+timesFour = pure $ (*) 4
+
+applicative = testGroup "Applicative"
+  [ testCase "pure" $ (toList $ pure @Stream 1) @?= [ 1 ]
+  , testCase "Identity" $ (toList $ pure id <*> oneFiveS) @?= oneFive
+  , testCase "Composition" $ (toList $ pure (.) <*> timesTwo <*> timesFour <*> oneFiveS) @?= (toList $ timesTwo <*> (timesFour <*> oneFiveS))
+  , testCase "Homomorphism" $ (toList $ timesTwo <*> pure @Stream 2) @?= (toList $ pure @Stream 4)
+  , testCase "Interchange" $ (toList $ timesTwo <*> pure @Stream 2) @?= (toList $ pure ($ 2) <*> timesTwo)
+  , testCase "Functor" $ (toList $ fmap ((*) 2) oneFiveS) @?= (toList $ pure ((*) 2) <*> oneFiveS)
   ]
