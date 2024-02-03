@@ -1,0 +1,26 @@
+cabal-version:      2.4
+name:               stream
+version:            1.0.0
+author:             Olivia Taliesin
+maintainer:         Olivia Taliesin <olivia@taliesin.dev>
+license:            MIT
+license-file:       LICENSE
+synopsis:           Yeah
+description:
+  Whattup
+
+library
+  default-language: Haskell2010
+  exposed-modules:  Data.Stream
+  build-depends:    base >=4.7 && <5
+  ghc-options:      -w
+
+test-suite stream-test
+  default-language: Haskell2010
+  type:             exitcode-stdio-1.0
+  main-is:          Test.hs
+  other-modules:    Data.Stream
+  build-depends:
+      base >=4.7 && <5
+    , tasty >=1.5 && <2
+    , tasty-hunit >=0.10.1 && <0.11
