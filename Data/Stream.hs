@@ -33,6 +33,15 @@ instance Monoid (Stream a) where
   {-# INLINE [0] mempty #-}
   mempty = Stream emptyStep ()
 
+instance Functor Stream where
+  {-# INLINE [1] fmap #-}
+  fmap f (Stream nx sg) = Stream nx' sg where
+    {-# INLINE [0] nx' #-}
+    nx' !g = case nx g of
+      Done      -> Done
+      Skip g'   -> nx' g'
+      Some x g' -> (Some (f x) g')
+
 instance IsList (Stream a) where
   type Item (Stream a) = a
 
