@@ -42,11 +42,11 @@ instance Semigroup (Stream a) where
     {-# INLINE [0] nx' #-}
     nx' (Left !g)  = case nxa g of
       Done      -> nx' (Right sgb)
-      Skip g'   -> nx' (Left g')
+      Skip g'   -> Skip (Left g')
       Some x g' -> (Some x (Left g'))
     nx' (Right !g) = case nxb g of
       Done      -> Done
-      Skip g'   -> nx' (Right g')
+      Skip g'   -> Skip (Right g')
       Some x g' -> (Some x (Right g'))
 
 instance Monoid (Stream a) where
@@ -59,7 +59,7 @@ instance Functor Stream where
     {-# INLINE [0] nx' #-}
     nx' !g = case nx g of
       Done      -> Done
-      Skip g'   -> nx' g'
+      Skip g'   -> Skip g'
       Some x g' -> (Some (f x) g')
 
 instance Applicative Stream where
@@ -74,8 +74,8 @@ instance Applicative Stream where
     {-# INLINE [0] nx' #-}
     nx' (!a, !b) = case nxa a of
       Done       -> Done
-      Skip ag    -> nx' (ag, b)
+      Skip ag    -> Skip (ag, b)
       Some a' ag -> case nxb b of
         Done       -> nx' (ag, sgb)
-        Skip bg    -> nx' (a, bg)
+        Skip bg    -> Skip (a, bg)
         Some b' bg -> Some (f a' b') (a, bg)
