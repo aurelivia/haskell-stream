@@ -2,7 +2,10 @@
 import Test.Tasty
 import Test.Tasty.HUnit (testCase, (@?=))
 
+import qualified Prelude as P
+import qualified Data.List as L
 import Data.Stream
+import qualified Data.Stream as S
 import GHC.Exts (toList, fromList)
 
 main = defaultMain $ testGroup "Stream"
@@ -10,6 +13,7 @@ main = defaultMain $ testGroup "Stream"
   , semigroup
   , functor
   , applicative
+  , Main.intercalate
   ]
 
 {-# INLINE oneFive #-}
@@ -74,3 +78,14 @@ applicative = testGroup "Applicative"
   , testCase "Interchange" $ (toList $ timesTwo <*> pure @Stream 2) @?= (toList $ pure ($ 2) <*> timesTwo)
   , testCase "Functor" $ (toList $ fmap ((*) 2) oneFiveS) @?= (toList $ pure ((*) 2) <*> oneFiveS)
   ]
+
+space :: [Int]
+space = P.take 3 $ P.repeat 9
+loopy :: [[Int]]
+loopy = P.take 3 $ P.repeat oneFive
+spaceS :: Stream Int
+spaceS = S.take 3 $ S.repeat 9
+loopyS :: Stream (Stream Int)
+loopyS = S.take 3 $ S.repeat oneFiveS
+
+intercalate = testCase "intercalate" $ (toList $ S.intercalate spaceS loopyS) @?= (L.intercalate space loopy)
