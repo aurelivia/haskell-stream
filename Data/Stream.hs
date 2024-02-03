@@ -21,6 +21,7 @@ module Data.Stream (
 
 import Prelude hiding (repeat, head, last, uncons, tail, init, take, drop)
 import GHC.Exts (IsList(..))
+import Data.Foldable (Foldable(foldr', foldl'))
 import Data.Maybe (maybe, fromMaybe)
 
 data Step g a = Some a !g | Skip !g | Done
@@ -93,6 +94,43 @@ instance Applicative Stream where
         Done       -> nx' (ag, sgb)
         Skip bg    -> Skip (a, bg)
         Some b' bg -> Some (f a' b') (a, bg)
+
+instance Foldable Stream where
+  {-# INLINE [1] foldr #-}
+  foldr f z (Stream nx sg) = flr' z sg where
+    {-# INLINE [0] flr' #-}
+    flr' z' !g = case nx g of
+      Done      -> z'
+      Skip g'   -> flr' z' g'
+      Some x g' -> f x $ flr' z' g'
+
+  {-# INLINE [1] foldr' #-}
+  foldr' f z (Stream nx sg) = flr' z sg where
+    {-# INLINE [0] flr' #-}
+    flr' z' !g = case nx g of
+      Done      -> z'
+      Skip g'   -> let !fz = flr' z' g' in fz
+      Some x g' -> let !fz = flr' z' g'; !fxz = f x fz in fxz
+
+  {-# INLINE [1] foldl #-}
+  foldl f z (Stream nx sg) = fll' z sg where
+    {-# INLINE [0] fll' #-}
+    fll' z' !g = case nx g of
+      Done      -> z'
+      Skip g'   -> fll' z' g'
+      Some x g' -> fll' (f z' x) g'
+
+  {-# INLINE [1] foldl' #-}
+  foldl' f z (Stream nx sg) = fll' z sg where
+    {-# INLINE [0] fll' #-}
+    fll' z' !g = case nx g of
+      Done      -> z'
+      Skip g'   -> let !fz = fll' z' g' in fz
+      Some x g' -> let !fxz = f z' x; !fz = fll' fz g' in fz
+
+
+
+
 
 --------------------------------------------------
 -- Constructors
