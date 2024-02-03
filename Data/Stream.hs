@@ -16,6 +16,26 @@ emptyStep _ = Done
 
 data Stream a = forall g. Stream !(g -> Step g a) !g
 
+instance IsList (Stream a) where
+  type Item (Stream a) = a
+
+  {-# INLINE [1] fromList #-}
+  fromList ls = Stream nx ls where
+    {-# INLINE [0] nx #-}
+    nx []     = Done
+    nx (x:xs) = Some x xs
+
+  {-# INLINE [1] toList #-}
+  toList (Stream nx sg) = toList' sg where
+    {-# INLINE [0] toList' #-}
+    toList' !g = case nx g of
+      Done      -> []
+      Skip g'   -> toList' g'
+      Some x g' -> x : toList' g'
+
+instance Eq a => Eq (Stream a) where
+  a == b = (toList a) == (toList b)
+
 instance Semigroup (Stream a) where
   {-# INLINE [1] (<>) #-}
   (Stream nxa sga) <> (Stream nxb sgb) = Stream nx' (Left sga) where
@@ -41,20 +61,3 @@ instance Functor Stream where
       Done      -> Done
       Skip g'   -> nx' g'
       Some x g' -> (Some (f x) g')
-
-instance IsList (Stream a) where
-  type Item (Stream a) = a
-
-  {-# INLINE [1] fromList #-}
-  fromList ls = Stream nx ls where
-    {-# INLINE [0] nx #-}
-    nx []     = Done
-    nx (x:xs) = Some x xs
-
-  {-# INLINE [1] toList #-}
-  toList (Stream nx sg) = toList' sg where
-    {-# INLINE [0] toList' #-}
-    toList' !g = case nx g of
-      Done      -> []
-      Skip g'   -> toList' g'
-      Some x g' -> x : toList' g'
