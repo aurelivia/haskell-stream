@@ -11,7 +11,10 @@ description:
 
 library
   default-language: Haskell2010
-  exposed-modules:  Data.Stream
+  exposed-modules:
+    Data.Stream
+    Data.Stream.Monadic
+    Data.Stream.Step
   build-depends:    base >=4.7 && <5
   ghc-options:      -w
 
@@ -19,7 +22,10 @@ test-suite stream-test
   default-language: Haskell2010
   type:             exitcode-stdio-1.0
   main-is:          Test.hs
-  other-modules:    Data.Stream
+  other-modules:
+    Data.Stream
+    Data.Stream.Monadic
+    Data.Stream.Step
   build-depends:
       base >=4.7 && <5
     , tasty >=1.5 && <2

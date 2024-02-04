@@ -29,19 +29,12 @@ import GHC.Exts (IsList(..), IsString(..))
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
+import Control.Monad.Fix (MonadFix(..))
+-- import Control.Monad.Zip (MonadZip(..))
 import Data.Foldable (Foldable(foldr', foldl'))
 import Data.Maybe (maybe, fromMaybe)
 
-data Step a g = Some a !g | Skip !g | Done
-
-instance Functor (Step a) where
-  {-# INLINE [0] fmap #-}
-  fmap _  Done      = Done
-  fmap f (Skip g)   = Skip (f g)
-  fmap f (Some x g) = Some x (f g)
-
-{-# INLINE [0] emptyStep #-}
-emptyStep _ = Done
+import Data.Stream.Step
 
 data Stream a = forall g. Stream !(g -> Step a g) !g
 
@@ -158,6 +151,17 @@ instance MonadPlus Stream
 instance MonadFail Stream where
   {-# INLINE [0] fail #-}
   fail _ = mempty
+--
+-- instance MonadFix Stream where
+--   {-# INLINE [1] mfix #-}
+--   mfix f (Stream nx sg) = Stream nx' (0, sg) where
+--     {-# INLINE [0] nx' #-}
+--     nx' (n, !g) = case nx g of
+--       Done       -> Done
+--       Skip g'    -> Skip (n, g')
+--       Some fx _ -> case head $ drop n (f fx) of
+--         Nothing -> Done
+--         Just x  -> Some x (n + 1, g)
 
 instance Foldable Stream where
   {-# INLINE [1] foldr #-}
