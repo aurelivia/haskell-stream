@@ -2,10 +2,11 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Data.Stream (
   -- ** Stream
-  Stream(..)
+  Stream(..), Step(..)
 
   -- ** Constructors
   , cons, snoc
@@ -50,7 +51,7 @@ instance Show a => Show (Stream a) where
 
 instance Read a => Read (Stream a) where
   {-# INLINE [0] readsPrec #-}
-  readsPrec p = map (\(x,s) -> (fromList x, s)) . readsPrec @[a] p
+  readsPrec p = map (\(x,s) -> (fromList x, s)) . readsPrec p
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
@@ -191,6 +192,10 @@ instance Foldable Stream where
       Skip g'   -> let !fz = fll' z' g' in fz
       Some x g' -> let !fxz = f z' x; !fz = fll' fz g' in fz
 
+instance Traversable Stream where
+  traverse f s = fmap fromList $ foldr appCons (pure []) s where
+    appCons x as = liftA2 (:) (f x) as
+
 
 
 
@@ -229,7 +234,6 @@ iterate :: (a -> a) -> a -> Stream a
 iterate f x = Stream nx x where
   {-# INLINE [0] nx #-}
   nx !x = Some x (f x)
-
 
 
 
