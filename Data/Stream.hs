@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Data.Stream (
   -- ** Stream
@@ -20,7 +21,10 @@ module Data.Stream (
   ) where
 
 import Prelude hiding (repeat, head, last, uncons, tail, init, take, drop)
-import GHC.Exts (IsList(..))
+import GHC.Exts (IsList(..), IsString(..))
+import Control.Applicative (Alternative(..))
+import Control.Monad (MonadPlus(..))
+import Control.Monad.Fail (MonadFail(..))
 import Data.Foldable (Foldable(foldr', foldl'))
 import Data.Maybe (maybe, fromMaybe)
 
@@ -30,6 +34,14 @@ data Step g a = Some a !g | Skip !g | Done
 emptyStep _ = Done
 
 data Stream a = forall g. Stream !(g -> Step g a) !g
+
+instance Show a => Show (Stream a) where
+  {-# INLINE [0] showsPrec #-}
+  showsPrec p = showsPrec p . toList
+
+instance Read a => Read (Stream a) where
+  {-# INLINE [0] readsPrec #-}
+  readsPrec p = map (\(x,s) -> (fromList x, s)) . readsPrec @[a] p
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
@@ -48,8 +60,25 @@ instance IsList (Stream a) where
       Skip g'   -> toList' g'
       Some x g' -> x : toList' g'
 
+instance IsString (Stream Char) where
+  {-# INLINE [0] fromString #-}
+  fromString = fromList
+
 instance Eq a => Eq (Stream a) where
-  a == b = (toList a) == (toList b)
+  {-# INLINE [0] (==) #-}
+  a == b = case (uncons a, uncons b) of
+    (Nothing, Nothing) -> True
+    (Nothing, Just _)  -> False
+    (Just _, Nothing)  -> False
+    (Just (ha, as), Just (hb, bs)) -> if (ha == hb) then (let !q = (as == bs) in q) else False
+
+instance Ord a => Ord (Stream a) where
+  {-# INLINE [0] compare #-}
+  compare a b = case (uncons a, uncons b) of
+    (Nothing, Nothing) -> EQ
+    (Nothing, Just _)  -> LT
+    (Just _, Nothing)  -> GT
+    (Just (ha, as), Just (hb, bs)) -> let !c = compare ha hb in if (c == EQ) then (let !q = compare as bs in q) else c
 
 instance Semigroup (Stream a) where
   {-# INLINE [1] (<>) #-}
@@ -94,6 +123,31 @@ instance Applicative Stream where
         Done       -> nx' (ag, sgb)
         Skip bg    -> Skip (a, bg)
         Some b' bg -> Some (f a' b') (a, bg)
+
+instance Alternative Stream where
+  {-# INLINE [0] empty #-}
+  empty = mempty
+  {-# INLINE [1] (<|>) #-}
+  (<|>) = (<>)
+
+instance Monad Stream where
+  {-# INLINE [1] (>>=) #-}
+  (Stream nx sg) >>= f = Stream nx' (Nothing, sg) where
+    {-# INLINE [0] nx' #-}
+    nx' (Nothing, !g) = case nx g of
+      Done      -> Done
+      Skip g'   -> Skip (Nothing, g')
+      Some x g' -> nx' (Just $ f x, g')
+    nx' (Just (Stream ifx !ig), !g) = case ifx ig of
+      Done        -> nx' (Nothing, g)
+      Skip ig'    -> Skip (Just (Stream ifx ig'), g)
+      Some ix ig' -> Some ix (Just (Stream ifx ig'), g)
+
+instance MonadPlus Stream
+
+instance MonadFail Stream where
+  {-# INLINE [0] fail #-}
+  fail _ = mempty
 
 instance Foldable Stream where
   {-# INLINE [1] foldr #-}
