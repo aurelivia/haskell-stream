@@ -103,7 +103,9 @@ slices = testGroup "Slices"
   , testCase "takeWhile" $ toList (S.takeWhile (/= 3) oneFiveS) @?= P.takeWhile (/= 3) oneFive
   , testCase "dropWhile" $ toList (S.dropWhile (/= 3) oneFiveS) @?= P.dropWhile (/= 3) oneFive
   , testCase "span" $ tupToList (S.span (/= 3) oneFiveS) @?= P.span (/= 3) oneFive
+  , testCase "spanMaybe" $ tupToList (S.spanMaybe maybes) @?= (oneFive, map Just sixTen)
   , testCase "splitAt" $ tupToList (S.splitAt 2 oneFiveS) @?= P.splitAt 2 oneFive
+  , testCase "groupEvery" $ S.groupEvery 2 long @?= grouped
   ]
 
 space :: [Int]

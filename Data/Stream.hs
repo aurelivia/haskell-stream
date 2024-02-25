@@ -19,7 +19,7 @@ module Data.Stream (
   , head, headElse, last, lastElse, uncons, (!?), length, isDone
 
   -- ** Slices
-  , tail, init, take, drop, slice, splitAt, takeWhile, dropWhile, span
+  , tail, init, take, drop, slice, splitAt, takeWhile, dropWhile, span, spanMaybe, groupEvery
 
   , intercalate
   ) where
@@ -410,6 +410,32 @@ dropWhile f (Stream nx sg) = Stream nx' (Left sg) where
 
 span :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
 span f s = (takeWhile f s, dropWhile f s)
+
+{-# INLINE [1] spanMaybe #-}
+spanMaybe :: Stream (Maybe a) -> (Stream a, Stream (Maybe a))
+spanMaybe s@(Stream nx sg) = (Stream take' sg, Stream drop' (Left sg)) where
+  {-# INLINE [0] take' #-}
+  take' !g = case nx g of
+    Done      -> Done
+    Skip g'   -> Skip g'
+    Some x g' -> maybe Done (`Some` g') x
+  {-# INLINE [0] drop' #-}
+  drop' (Right !g)  = Right <$> nx g
+  drop' (Left  !g) = case nx g of
+    Done      -> Done
+    Skip g'   -> Skip (Left g')
+    Some (Just _) g' -> Skip (Left g')
+    Some Nothing  g' -> case nx g' of
+      Done      -> Done
+      Skip g'   -> Skip (Right g')
+      Some x g' -> Some x (Right g')
+
+{-# INLINE [1] groupEvery #-}
+groupEvery :: Int -> Stream a -> Stream (Stream a)
+groupEvery i s = Stream nx s where
+  {-# INLINE [0] nx #-}
+  nx s = let (t, d) = splitAt i s in if isDone t then Done else Some t d
+
 
 
 
