@@ -2,11 +2,13 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Data.Stream (
   -- ** Stream
-  Stream(..), Step(..)
+  Stream(.., (:<>)), Step(..)
 
   -- ** Constructors
   , cons, snoc
@@ -14,16 +16,17 @@ module Data.Stream (
   , repeat, cycle, iterate
 
   -- ** Accessors
-  , head, headElse, last, lastElse, uncons, (!?)
+  , head, headElse, last, lastElse, uncons, (!?), length, isDone
 
   -- ** Slices
-  , tail, init, take, drop, slice, takeWhile, dropWhile
+  , tail, init, take, drop, slice, splitAt, takeWhile, dropWhile, span
 
   , intercalate
   ) where
 
 import Prelude hiding
-  (repeat, head, last, uncons, tail, init, take, drop, cycle, iterate, takeWhile, dropWhile
+  ( repeat, head, last, uncons, tail, init, take, drop, cycle, iterate, takeWhile, dropWhile
+  , length, span, splitAt
   )
 import GHC.Exts (IsList(..), IsString(..))
 import Control.Applicative (Alternative(..))
@@ -37,6 +40,11 @@ import Data.Bifunctor (first)
 import Data.Stream.Step
 
 data Stream a = forall g. Stream !(g -> Step a g) !g
+
+infixr 5 :<>
+pattern (:<>) :: a -> Stream a -> Stream a
+pattern x :<> xs <- (uncons -> Just (x, xs)) where
+  x :<> xs = cons x xs
 
 instance Show a => Show (Stream a) where
   {-# INLINE [0] showsPrec #-}
@@ -306,6 +314,17 @@ idx' i nx !g = case nx g of
   Skip g'   -> idx' i nx g'
   Some x g' -> if i == 0 then Just x else idx' (i - 1) nx g'
 
+{-# INLINE [0] length #-}
+length :: Stream a -> Int
+length = foldl' (\l x -> x `seq` l + 1) 0
+
+{-# INLINE [0] isDone #-}
+isDone :: Stream a -> Bool
+isDone (Stream nx sg) = case nx sg of
+  Done      -> True
+  Skip g'   -> isDone (Stream nx g')
+  Some _ g' -> False
+
 
 
 
@@ -366,6 +385,10 @@ drop n (Stream nx sg) = Stream nx' (n, sg) where
 slice :: Int -> Int -> Stream a -> Stream a
 slice i n = take n . drop i
 
+{-# INLINE [1] splitAt #-}
+splitAt :: Int -> Stream a -> (Stream a, Stream a)
+splitAt i s = (take i s, drop i s)
+
 {-# INLINE [1] takeWhile #-}
 takeWhile :: (a -> Bool) -> Stream a -> Stream a
 takeWhile f (Stream nx sg) = Stream nx' sg where
@@ -384,6 +407,9 @@ dropWhile f (Stream nx sg) = Stream nx' (Left sg) where
     Done      -> Done
     Skip g'   -> Skip (Left g')
     Some x g' -> if f x then Skip (Left g') else Some x (Right g')
+
+span :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
+span f s = (takeWhile f s, dropWhile f s)
 
 
 

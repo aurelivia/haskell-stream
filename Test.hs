@@ -16,6 +16,7 @@ main = defaultMain $ testGroup "Stream"
   , functor
   , applicative
   , foldable
+  , accessors
   , slices
   , folds
   ]
@@ -90,11 +91,19 @@ foldable = testGroup "Foldable"
   , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
   ]
 
+accessors = testGroup "Accessors"
+  [ testCase "head" $ S.head oneFiveS @?= Just 1
+  , testCase "length" $ S.length oneFiveS @?= 5
+  , testGroup "isDone" [ testCase "True" $ S.isDone mempty @?= True, testCase "False" $ S.isDone oneFiveS @?= False ]
+  ]
+
 slices = testGroup "Slices"
   [ testCase "take" $ toList (S.take 3 oneFiveS) @?= P.take 3 oneFive
   , testCase "drop" $ toList (S.drop 3 oneFiveS) @?= P.drop 3 oneFive
   , testCase "takeWhile" $ toList (S.takeWhile (/= 3) oneFiveS) @?= P.takeWhile (/= 3) oneFive
   , testCase "dropWhile" $ toList (S.dropWhile (/= 3) oneFiveS) @?= P.dropWhile (/= 3) oneFive
+  , testCase "span" $ tupToList (S.span (/= 3) oneFiveS) @?= P.span (/= 3) oneFive
+  , testCase "splitAt" $ tupToList (S.splitAt 2 oneFiveS) @?= P.splitAt 2 oneFive
   ]
 
 space :: [Int]
