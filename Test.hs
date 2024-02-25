@@ -8,13 +8,15 @@ import qualified Data.List as L
 import Data.Stream
 import qualified Data.Stream as S
 import GHC.Exts (toList, fromList)
+import Data.Foldable (foldr, foldr', foldl, foldl')
 
 main = defaultMain $ testGroup "Stream"
   [ toFromList
   , semigroup
   , functor
   , applicative
-  , Main.intercalate
+  , foldable
+  , folds
   ]
 
 {-# INLINE oneFive #-}
@@ -72,12 +74,19 @@ timesFour :: Stream (Int -> Int)
 timesFour = pure $ (*) 4
 
 applicative = testGroup "Applicative"
-  [ testCase "pure" $ (toList $ pure @Stream 1) @?= [ 1 ]
+  [ testCase "pure" $ toList (pure @Stream 1) @?= [ 1 ]
   , testCase "Identity" $ (toList $ pure id <*> oneFiveS) @?= oneFive
   , testCase "Composition" $ (pure (.) <*> timesTwo <*> timesFour <*> oneFiveS) @?= (timesTwo <*> (timesFour <*> oneFiveS))
   , testCase "Homomorphism" $ (timesTwo <*> pure @Stream 2) @?= (pure @Stream 4)
   , testCase "Interchange" $ (timesTwo <*> pure @Stream 2) @?= (pure ($ 2) <*> timesTwo)
   , testCase "Functor" $ (fmap ((*) 2) oneFiveS) @?= (pure ((*) 2) <*> oneFiveS)
+  ]
+
+foldable = testGroup "Foldable"
+  [ testCase "foldr" $ foldr (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldr'" $ foldr' (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldl" $ foldl (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
+  , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
   ]
 
 space :: [Int]

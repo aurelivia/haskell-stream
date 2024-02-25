@@ -194,7 +194,7 @@ instance Foldable Stream where
     fll' z' !g = case nx g of
       Done      -> z'
       Skip g'   -> let !fz = fll' z' g' in fz
-      Some x g' -> let !fxz = f z' x; !fz = fll' fz g' in fz
+      Some x g' -> let !fxz = f z' x; !fz = fll' fxz g' in fz
 
 instance Traversable Stream where
   traverse f s = fmap fromList $ foldr appCons (pure []) s where
