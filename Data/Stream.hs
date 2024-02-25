@@ -22,11 +22,12 @@ module Data.Stream (
 
   -- ** Folds
   , intercalate, transpose
+  , concat, concatMap, concat2, concat3, concat4, concat5, concat6, concat7
   ) where
 
 import Prelude hiding
   ( repeat, head, last, uncons, tail, init, take, drop, cycle, iterate, takeWhile, dropWhile
-  , transpose, length, span, splitAt
+  , transpose, concatMap, length, concat, span, splitAt
   )
 import GHC.Exts (IsList(..), IsString(..))
 import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
@@ -491,3 +492,44 @@ transpose (Stream nx sg) = Stream nx' (init sg) where
     Done      -> nx' (prev, nxt, g)
     Skip g'   -> Skip (prev, Stream ix g' <| nxt, g)
     Some x g' -> Some (Just x) (prev |> Stream ix g', nxt, g)
+
+concat :: Stream (Stream a) -> Stream a
+concat (Stream nx sg) = Stream (concat' nx id) (Nothing, sg)
+
+{-# INLINE [0] concat' #-}
+concat' :: (g -> Step a g) -> (a -> Stream b) -> (Maybe (Stream b), g) -> Step b (Maybe (Stream b), g)
+concat' nx f (Nothing, !g) = case nx g of
+  Done      -> Done
+  Skip g'   -> Skip (Nothing, g')
+  Some x g' -> concat' nx f (Just (f x), g')
+concat' nx f (i@(Just (Stream ix !ig)), !g) = case ix ig of
+  Done      -> concat' nx f (Nothing, g)
+  Skip g'   -> Skip (i, g)
+  Some x g' -> Some x (Just (Stream ix g'), g)
+
+concatMap :: (a -> Stream b) -> Stream a -> Stream b
+concatMap f (Stream nx sg) = Stream (concat' nx f) (Nothing, sg)
+
+concatAppend :: Stream a -> Stream (Stream a) -> Stream a
+concatAppend zs (Stream nx sg) = Stream (concat' nx id) (Just zs, sg)
+
+concat2Append :: Stream a -> Stream (Stream (Stream a)) -> Stream a
+concat2Append zs (Stream nx sg) = Stream (concat' nx concat) (Just zs, sg)
+
+concat2 :: Stream (Stream (Stream a)) -> Stream a
+concat2 (Stream nx sg) = Stream (concat' nx concat) (Nothing, sg)
+
+concat3 :: Stream (Stream (Stream (Stream a))) -> Stream a
+concat3 (Stream nx sg) = Stream (concat' nx concat2) (Nothing, sg)
+
+concat4 :: Stream (Stream (Stream (Stream (Stream a)))) -> Stream a
+concat4 (Stream nx sg) = Stream (concat' nx concat3) (Nothing, sg)
+
+concat5 :: Stream (Stream (Stream (Stream (Stream (Stream a))))) -> Stream a
+concat5 (Stream nx sg) = Stream (concat' nx concat4) (Nothing, sg)
+
+concat6 :: Stream (Stream (Stream (Stream (Stream (Stream (Stream a)))))) -> Stream a
+concat6 (Stream nx sg) = Stream (concat' nx concat5) (Nothing, sg)
+
+concat7 :: Stream (Stream (Stream (Stream (Stream (Stream (Stream (Stream a))))))) -> Stream a
+concat7 (Stream nx sg) = Stream (concat' nx concat6) (Nothing, sg)

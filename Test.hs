@@ -97,6 +97,13 @@ accessors = testGroup "Accessors"
   , testGroup "isDone" [ testCase "True" $ S.isDone mempty @?= True, testCase "False" $ S.isDone oneFiveS @?= False ]
   ]
 
+tupToList (x,y) = (toList x, toList y)
+
+long = oneFiveS <> sixTenS <> elvFifS
+grouped = fromList $ map fromList $ [ [ 1, 2 ], [ 3, 4 ], [ 5, 6 ], [ 7, 8 ], [ 9, 10 ], [ 11, 12 ], [ 13, 14 ], [ 15 ] ]
+
+maybes = fromList [ Just 1, Just 2, Just 3, Just 4, Just 5, Nothing, Just 6, Just 7, Just 8, Just 9, Just 10 ]
+
 slices = testGroup "Slices"
   [ testCase "take" $ toList (S.take 3 oneFiveS) @?= P.take 3 oneFive
   , testCase "drop" $ toList (S.drop 3 oneFiveS) @?= P.drop 3 oneFive
@@ -111,6 +118,7 @@ slices = testGroup "Slices"
 folds = testGroup "Folds"
   [ transpose
   , intercalate
+  , concats
   ]
 
 twoD :: Stream (Stream Int)
@@ -143,3 +151,36 @@ loopyS :: Stream (Stream Int)
 loopyS = S.take 3 $ S.repeat oneFiveS
 
 intercalate = testCase "intercalate" $ (toList $ S.intercalate spaceS loopyS) @?= (L.intercalate space loopy)
+
+oneLevel :: [Int]
+oneLevel = P.concat $ P.replicate 5 oneFive
+oneLevelS :: Stream (Stream Int)
+oneLevelS = S.take 5 $ S.repeat oneFiveS
+
+twoLevel :: [Int]
+twoLevel = P.concat $ P.replicate 5 oneLevel
+twoLevelS :: Stream (Stream (Stream Int))
+twoLevelS = S.take 5 $ S.repeat oneLevelS
+
+threeLevel :: [Int]
+threeLevel = P.concat $ P.replicate 5 twoLevel
+threeLevelS :: Stream (Stream (Stream (Stream Int)))
+threeLevelS = S.take 5 $ S.repeat twoLevelS
+
+fourLevel :: [Int]
+fourLevel = P.concat $ P.replicate 5 threeLevel
+fourLevelS :: Stream (Stream (Stream (Stream (Stream Int))))
+fourLevelS = S.take 5 $ S.repeat threeLevelS
+
+fiveLevel :: [Int]
+fiveLevel = P.concat $ P.replicate 5 fourLevel
+fiveLevelS :: Stream (Stream (Stream (Stream (Stream (Stream Int)))))
+fiveLevelS = S.take 5 $ S.repeat fourLevelS
+
+concats = testGroup "Concats"
+  [ testCase "concat" $ toList (S.concat oneLevelS) @?= oneLevel
+  , testCase "concat2" $ toList (S.concat2 twoLevelS) @?= twoLevel
+  , testCase "concat3" $ toList (S.concat3 threeLevelS) @?= threeLevel
+  , testCase "concat4" $ toList (S.concat4 fourLevelS) @?= fourLevel
+  , testCase "concat5" $ toList (S.concat5 fiveLevelS) @?= fiveLevel
+  ]
