@@ -375,15 +375,15 @@ takeWhile f (Stream nx sg) = Stream nx' sg where
     Skip g'   -> Skip g'
     Some x g' -> if f x then Some x g' else Done
 
-dropWhile :: (a -> Bool) -> Stream a -> Stream a
 {-# INLINE [1] dropWhile #-}
-dropWhile f (Stream nx sg) = Stream nx' (False, sg) where
+dropWhile :: (a -> Bool) -> Stream a -> Stream a
+dropWhile f (Stream nx sg) = Stream nx' (Left sg) where
   {-# INLINE [0] nx' #-}
-  nx' (True, !g)  = fmap ((,) True) $ nx g
-  nx' (False, !g) = case nx g of
+  nx' (Right !g) = Right <$> nx g
+  nx' (Left  !g) = case nx g of
     Done      -> Done
-    Skip g'   -> Skip (False, g')
-    Some x g' -> if (f x) then Skip (False, g') else Some x (True, g')
+    Skip g'   -> Skip (Left g')
+    Some x g' -> if f x then Skip (Left g') else Some x (Right g')
 
 
 
