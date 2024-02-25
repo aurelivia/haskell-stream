@@ -32,7 +32,7 @@ import Control.Monad.Fail (MonadFail(..))
 import Control.Monad.Fix (MonadFix(..))
 -- import Control.Monad.Zip (MonadZip(..))
 import Data.Foldable (Foldable(foldr', foldl'))
-import Data.Maybe (maybe, fromMaybe)
+import Data.Bifunctor (first)
 
 import Data.Stream.Step
 
@@ -44,13 +44,13 @@ instance Show a => Show (Stream a) where
 
 instance Read a => Read (Stream a) where
   {-# INLINE [0] readsPrec #-}
-  readsPrec p = map (\(x,s) -> (fromList x, s)) . readsPrec p
+  readsPrec p = map (first fromList) . readsPrec p
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
 
   {-# INLINE [1] fromList #-}
-  fromList ls = Stream nx ls where
+  fromList = Stream nx where
     {-# INLINE [0] nx #-}
     nx []     = Done
     nx (x:xs) = Some x xs
@@ -73,7 +73,7 @@ instance Eq a => Eq (Stream a) where
     (Nothing, Nothing) -> True
     (Nothing, Just _)  -> False
     (Just _, Nothing)  -> False
-    (Just (ha, as), Just (hb, bs)) -> if (ha == hb) then (let !q = (as == bs) in q) else False
+    (Just (ha, as), Just (hb, bs)) -> (ha == hb) && let !q = (as == bs) in q
 
 instance Ord a => Ord (Stream a) where
   {-# INLINE [0] compare #-}
@@ -81,7 +81,7 @@ instance Ord a => Ord (Stream a) where
     (Nothing, Nothing) -> EQ
     (Nothing, Just _)  -> LT
     (Just _, Nothing)  -> GT
-    (Just (ha, as), Just (hb, bs)) -> let !c = compare ha hb in if (c == EQ) then (let !q = compare as bs in q) else c
+    (Just (ha, as), Just (hb, bs)) -> let !c = compare ha hb in if c == EQ then (let !q = compare as bs in q) else c
 
 instance Semigroup (Stream a) where
   {-# INLINE [1] (<>) #-}
@@ -90,11 +90,11 @@ instance Semigroup (Stream a) where
     nx' (Left !g)  = case nxa g of
       Done      -> nx' (Right sgb)
       Skip g'   -> Skip (Left g')
-      Some x g' -> (Some x (Left g'))
+      Some x g' -> Some x (Left g')
     nx' (Right !g) = case nxb g of
       Done      -> Done
       Skip g'   -> Skip (Right g')
-      Some x g' -> (Some x (Right g'))
+      Some x g' -> Some x (Right g')
 
 instance Monoid (Stream a) where
   {-# INLINE [0] mempty #-}
@@ -107,7 +107,7 @@ instance Functor Stream where
     nx' !g = case nx g of
       Done      -> Done
       Skip g'   -> Skip g'
-      Some x g' -> (Some (f x) g')
+      Some x g' -> Some (f x) g'
 
 instance Applicative Stream where
   {-# INLINE [0] pure #-}
@@ -197,8 +197,9 @@ instance Foldable Stream where
       Some x g' -> let !fxz = f z' x; !fz = fll' fxz g' in fz
 
 instance Traversable Stream where
-  traverse f s = fmap fromList $ foldr appCons (pure []) s where
-    appCons x as = liftA2 (:) (f x) as
+  {-# INLINE [1] traverse #-}
+  traverse f s = fromList <$> foldr appCons (pure []) s where
+    appCons x = liftA2 (:) (f x)
 
 
 
@@ -208,24 +209,24 @@ instance Traversable Stream where
 -- Constructors
 --------------------------------------------------
 
-cons :: a -> Stream a -> Stream a
 {-# INLINE [0] cons #-}
+cons :: a -> Stream a -> Stream a
 cons x = (<>) (pure x)
 
-snoc :: Stream a -> a -> Stream a
 {-# INLINE [0] snoc #-}
-snoc xs x = xs <> (pure x)
+snoc :: Stream a -> a -> Stream a
+snoc xs x = xs <> pure x
 
 -- | Creates a stream consisting of a single element repeated infinitely.
-repeat :: a -> Stream a
 {-# INLINE [0] repeat #-}
+repeat :: a -> Stream a
 repeat x = Stream nx () where
   {-# INLINE [0] nx #-}
   nx _ = Some x ()
 
 -- | Turns a finite list into an infinite one by repeating it.
-cycle :: Stream a -> Stream a
 {-# INLINE [1] cycle #-}
+cycle :: Stream a -> Stream a
 cycle (Stream nx sg) = Stream nx' sg where
   {-# INLINE [0] nx' #-}
   nx' !g = case nx g of
@@ -233,8 +234,8 @@ cycle (Stream nx sg) = Stream nx' sg where
     Skip g'   -> Skip g'
     Some x g' -> Some x g'
 
-iterate :: (a -> a) -> a -> Stream a
 {-# INLINE [1] iterate #-}
+iterate :: (a -> a) -> a -> Stream a
 iterate f x = Stream nx x where
   {-# INLINE [0] nx #-}
   nx !x = Some x (f x)
@@ -248,8 +249,8 @@ iterate f x = Stream nx x where
 --------------------------------------------------
 
 -- | \(\mathcal{O}(1)\) (Skips notwithstanding). Retrieve the first element available in a stream, or Nothing if there isn't one.
-head :: Stream a -> Maybe a
 {-# INLINE [1] head #-}
+head :: Stream a -> Maybe a
 head (Stream nx sg) = head' nx sg
 
 {-# INLINE [0] head' #-}
@@ -260,14 +261,14 @@ head' nx !g = case nx g of
   Some x g' -> Just x
 
 -- | \(\mathcal{O}(1)\). Retrieve the first element available in a stream, or a provided default if there isn't one.
-headElse :: a -> Stream a -> a
 {-# INLINE [0] headElse #-}
+headElse :: a -> Stream a -> a
 headElse e = fromMaybe e . head
 
 -- | \(\mathcal{O}(n)\). Retrieve the last element available in a stream, or Nothing if there isn't one. Will hang on non-terminating streams.
-last :: Stream a -> Maybe a
 {-# INLINE [1] last #-}
-last (Stream nx sg) = last' Nothing nx sg where
+last :: Stream a -> Maybe a
+last (Stream nx sg) = last' Nothing nx sg
 
 {-# INLINE [0] last' #-}
 last' l nx !g = case nx g of
@@ -276,17 +277,17 @@ last' l nx !g = case nx g of
   Some x g' -> last' (Just x) nx g'
 
 -- | \(\mathcal{O}(n)\). Retrieve the last element available in a stream, or a provided default if there isn't one. Will hang on non-terminating streams.
-lastElse :: a -> Stream a -> a
 {-# INLINE [0] lastElse #-}
+lastElse :: a -> Stream a -> a
 lastElse e = fromMaybe e . last
 
 -- | \(\mathcal{O}(1)\). Produce a tuple consisting of @(head x, tail x)@ if a stream has any elements, otherwise Nothing.
-uncons :: Stream a -> Maybe (a, Stream a)
 {-# INLINE [1] uncons #-}
+uncons :: Stream a -> Maybe (a, Stream a)
 uncons (Stream nx sg) = uncons' nx sg
 
-uncons' :: (g -> Step a g) -> g -> Maybe (a, Stream a)
 {-# INLINE [0] uncons' #-}
+uncons' :: (g -> Step a g) -> g -> Maybe (a, Stream a)
 uncons' nx !g = case nx g of
   Done      -> Nothing
   Skip g'   -> uncons' nx g'
@@ -296,14 +297,14 @@ uncons' nx !g = case nx g of
 (!?) :: Stream a -> Int -> Maybe a
 infixl 9 !?
 {-# INLINE [0] (!?) #-}
-(Stream nx sg) !? i = if i < 0 then Nothing else idx' i nx sg where
+(Stream nx sg) !? i = if i < 0 then Nothing else idx' i nx sg
 
-idx' :: Int -> (g -> Step a g) -> g -> Maybe a
 {-# INLINE [0] idx' #-}
+idx' :: Int -> (g -> Step a g) -> g -> Maybe a
 idx' i nx !g = case nx g of
   Done      -> Nothing
   Skip g'   -> idx' i nx g'
-  Some x g' -> if (i == 0) then (Just x) else idx' (i - 1) nx g'
+  Some x g' -> if i == 0 then Just x else idx' (i - 1) nx g'
 
 
 
@@ -314,9 +315,9 @@ idx' i nx !g = case nx g of
 --------------------------------------------------
 
 -- | \(\mathcal{O}(1)\) (Skips notwithstanding). Creates a new stream containing all elements of an existing stream except for first available.
-tail :: Stream a -> Stream a
 {-# INLINE [1] tail #-}
-tail (Stream nx sg) = tail' nx sg where
+tail :: Stream a -> Stream a
+tail (Stream nx sg) = tail' nx sg
 
 {-# INLINE [0] tail' #-}
 tail' :: (g -> Step a g) -> g -> Stream a
@@ -326,8 +327,8 @@ tail' nx !g = case nx g of
   Some _ g' -> Stream nx g'
 
 -- | \(\mathcal{O}(1)\). Creates a new stream containing all elements of an existing stream except the last available before it terminates. If it doesn't terminate then it's identical to the input.
-init :: Stream a -> Stream a
 {-# INLINE [1] init #-}
+init :: Stream a -> Stream a
 init (Stream nx sg) = Stream nx' sg where
   {-# INLINE [0] nx' #-}
   nx' !g = case nx g of
@@ -341,8 +342,8 @@ init (Stream nx sg) = Stream nx' sg where
     Some _ _  -> Some x og
 
 -- | \(\mathcal{O}()\). Produce a new stream consisting of only the first \mathcal{n} elements of a given stream.
-take :: Int -> Stream a -> Stream a
 {-# INLINE [1] take #-}
+take :: Int -> Stream a -> Stream a
 take n (Stream nx sg) = Stream nx' (n, sg) where
   {-# INLINE [0] nx' #-}
   nx' (n, !g) = case nx g of
@@ -351,28 +352,28 @@ take n (Stream nx sg) = Stream nx' (n, sg) where
     Some x g' -> if n <= 0 then Done else Some x (n - 1, g')
 
 -- | \(\mathcal{O}(n)\). Produce a new stream consisting of all elements from a given stream except for the first \mathcal{n}.
-drop :: Int -> Stream a -> Stream a
 {-# INLINE [1] drop #-}
+drop :: Int -> Stream a -> Stream a
 drop n (Stream nx sg) = Stream nx' (n, sg) where
   {-# INLINE [0] nx' #-}
   nx' (n, !g) = case nx g of
     Done      -> Done
     Skip g'   -> Skip (n, g')
-    Some x g' -> if n <= 0 then Skip (n - 1, g') else Some x (0, g')
+    Some x g' -> if n <= 0 then Some x (0, g') else Skip (n - 1, g')
 
 -- | \(\mathcal{O}(n)\). Produce a new stream consisting of only the next \mathcal{n} available elements after dropping \mathcal{i}. Equivalent to @take n . drop i@.
-slice :: Int -> Int -> Stream a -> Stream a
 {-# INLINE [1] slice #-}
+slice :: Int -> Int -> Stream a -> Stream a
 slice i n = take n . drop i
 
-takeWhile :: (a -> Bool) -> Stream a -> Stream a
 {-# INLINE [1] takeWhile #-}
+takeWhile :: (a -> Bool) -> Stream a -> Stream a
 takeWhile f (Stream nx sg) = Stream nx' sg where
   {-# INLINE [0] nx' #-}
   nx' !g = case nx g of
     Done      -> Done
     Skip g'   -> Skip g'
-    Some x g' -> if (f x) then Some x g' else Done
+    Some x g' -> if f x then Some x g' else Done
 
 dropWhile :: (a -> Bool) -> Stream a -> Stream a
 {-# INLINE [1] dropWhile #-}
@@ -387,8 +388,8 @@ dropWhile f (Stream nx sg) = Stream nx' (False, sg) where
 
 
 
-intercalate :: Stream a -> Stream (Stream a) -> Stream a
 {-# INLINE [1] intercalate #-}
+intercalate :: Stream a -> Stream (Stream a) -> Stream a
 intercalate e (Stream nx sg) = Stream nx' (Nothing, sg) where
   {-# INLINE [0] nx' #-}
   nx' (Nothing, !g) = case nx g of
