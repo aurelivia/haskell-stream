@@ -108,6 +108,31 @@ slices = testGroup "Slices"
   , testCase "groupEvery" $ S.groupEvery 2 long @?= grouped
   ]
 
+folds = testGroup "Folds"
+  [ transpose
+  , intercalate
+  ]
+
+twoD :: Stream (Stream Int)
+twoD = fromList
+  [ fromList [ 11, 12, 13, 14, 15 ]
+  , fromList [ 21, 22, 23, 24, 25 ]
+  , fromList [ 31, 32, 33, 34, 35 ]
+  , fromList [ 41, 42, 43, 44, 45 ]
+  , fromList [ 51, 52, 53, 54, 55 ]
+  ]
+
+transposed :: [ Maybe Int ]
+transposed =
+  [ Just 11, Just 21, Just 31, Just 41, Just 51, Nothing
+  , Just 12, Just 22, Just 32, Just 42, Just 52, Nothing
+  , Just 13, Just 23, Just 33, Just 43, Just 53, Nothing
+  , Just 14, Just 24, Just 34, Just 44, Just 54, Nothing
+  , Just 15, Just 25, Just 35, Just 45, Just 55, Nothing
+  ]
+
+transpose = testCase "Transpose" $ toList (S.transpose twoD) @?= transposed
+
 space :: [Int]
 space = P.take 3 $ P.repeat 9
 loopy :: [[Int]]

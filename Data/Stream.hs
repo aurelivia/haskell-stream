@@ -2,7 +2,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -21,12 +20,13 @@ module Data.Stream (
   -- ** Slices
   , tail, init, take, drop, slice, splitAt, takeWhile, dropWhile, span, spanMaybe, groupEvery
 
-  , intercalate
+  -- ** Folds
+  , intercalate, transpose
   ) where
 
 import Prelude hiding
   ( repeat, head, last, uncons, tail, init, take, drop, cycle, iterate, takeWhile, dropWhile
-  , length, span, splitAt
+  , transpose, length, span, splitAt
   )
 import GHC.Exts (IsList(..), IsString(..))
 import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
@@ -37,6 +37,8 @@ import Control.Monad.Fix (MonadFix(..))
 -- import Control.Monad.Zip (MonadZip(..))
 import Data.Foldable (Foldable(foldr', foldl'))
 import Data.Bifunctor (first)
+import Data.Sequence (Seq(..), ViewR(..), (<|), (|>))
+import qualified Data.Sequence as Seq
 
 import Data.Stream.Step
 
@@ -470,3 +472,22 @@ intercalate e (Stream nx sg) = Stream nx' (Nothing, sg) where
     Done      -> nx' (Nothing, g)
     Skip g'   -> Skip (Just (Right (Stream enx g')), g)
     Some x g' -> Some x (Just (Right (Stream enx g')), g)
+
+{-# INLINE [1] transpose #-}
+transpose :: Stream (Stream a) -> Stream (Maybe a)
+transpose (Stream nx sg) = Stream nx' (init sg) where
+  {-# INLINE [0] init #-}
+  init !g = case nx g of
+    Done      -> (Seq.empty, Seq.empty, g)
+    Skip g'   -> init g'
+    Some x g' -> (Seq.empty, Seq.singleton x, g')
+  {-# INLINE [0] nx' #-}
+  nx' (Seq.Empty, Seq.Empty, _) = Done
+  nx' (prev, Seq.Empty, !g) = case nx g of
+    Done      -> Some Nothing (Seq.empty, prev, g)
+    Skip g'   -> Skip (prev, Seq.empty, g')
+    Some x g' -> nx' (prev, Seq.singleton x, g')
+  nx' (prev, (Stream ix ig) :<| nxt, !g) = case ix ig of
+    Done      -> nx' (prev, nxt, g)
+    Skip g'   -> Skip (prev, Stream ix g' <| nxt, g)
+    Some x g' -> Some (Just x) (prev |> Stream ix g', nxt, g)
