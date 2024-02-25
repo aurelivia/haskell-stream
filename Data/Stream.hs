@@ -29,6 +29,7 @@ import Prelude hiding
   , length, span, splitAt
   )
 import GHC.Exts (IsList(..), IsString(..))
+import Control.DeepSeq (NFData(..), NFData1(..), rnf1)
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
@@ -208,6 +209,19 @@ instance Traversable Stream where
   {-# INLINE [1] traverse #-}
   traverse f s = fromList <$> foldr appCons (pure []) s where
     appCons x = liftA2 (:) (f x)
+
+instance NFData a => NFData (Stream a) where
+  {-# INLINE [0] rnf #-}
+  rnf = rnf1
+
+instance NFData1 Stream where
+  {-# INLINE [0] liftRnf #-}
+  liftRnf r (Stream nx sg) = liftRnf' sg where
+    {-# INLINE [0] liftRnf' #-}
+    liftRnf' !g = case nx g of
+      Done      -> ()
+      Skip g'   -> liftRnf' g'
+      Some x g' -> r x `seq` liftRnf' g'
 
 
 
