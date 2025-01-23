@@ -116,10 +116,14 @@ slices = testGroup "Slices"
   ]
 
 folds = testGroup "Folds"
-  [ transpose
+  [ intersperse
+  , transpose
   , intercalate
+  , foldPairs
   , concats
   ]
+
+intersperse = testCase "intersperse" $ (toList $ S.intersperse 1 oneFiveS) @?= (L.intersperse 1 oneFive)
 
 twoD :: Stream (Stream Int)
 twoD = fromList
@@ -151,6 +155,16 @@ loopyS :: Stream (Stream Int)
 loopyS = S.take 3 $ S.repeat oneFiveS
 
 intercalate = testCase "intercalate" $ (toList $ S.intercalate spaceS loopyS) @?= (L.intercalate space loopy)
+
+listFoldPairs :: (b -> a -> a -> b) -> b -> [a] -> b
+listFoldPairs _ z [] = z
+listFoldPairs _ z (x:[]) = z
+listFoldPairs f z (x:xs@(y:_)) = listFoldPairs f (f z x y) xs
+
+addPair :: [Int] -> Int -> Int -> [Int]
+addPair z x y = (x + y) : z
+
+foldPairs = testCase "foldPairs" $ (S.foldPairs addPair [] oneFiveS) @?= (listFoldPairs addPair [] oneFive)
 
 oneLevel :: [Int]
 oneLevel = P.concat $ P.replicate 5 oneFive

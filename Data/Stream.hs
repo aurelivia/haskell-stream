@@ -10,7 +10,7 @@ module Data.Stream (
   Stream(.., (:<>)), Step(..)
 
   -- ** Constructors
-  , cons, snoc
+  , cons, snoc, fromSeq
   -- *** Infinite
   , repeat, cycle, iterate
 
@@ -21,7 +21,7 @@ module Data.Stream (
   , tail, init, take, drop, slice, splitAt, takeWhile, dropWhile, span, spanMaybe, groupEvery
 
   -- ** Folds
-  , intercalate, transpose
+  , intersperse, intercalate, transpose, foldPairs
   , concat, concatMap, concat2, concat3, concat4, concat5, concat6, concat7
   ) where
 
@@ -78,6 +78,11 @@ instance IsList (Stream a) where
 instance IsString (Stream Char) where
   {-# INLINE [0] fromString #-}
   fromString = fromList
+
+fromSeq :: Seq a -> Stream a
+fromSeq = Stream nx where
+  nx Seq.Empty = Done
+  nx (x:<|xs)  = Some x xs
 
 instance Eq a => Eq (Stream a) where
   {-# INLINE [0] (==) #-}
@@ -390,12 +395,14 @@ take n (Stream nx sg) = Stream nx' (n, sg) where
 -- | \(\mathcal{O}(n)\). Produce a new stream consisting of all elements from a given stream except for the first \mathcal{n}.
 {-# INLINE [1] drop #-}
 drop :: Int -> Stream a -> Stream a
-drop n (Stream nx sg) = Stream nx' (n, sg) where
-  {-# INLINE [0] nx' #-}
-  nx' (n, !g) = case nx g of
-    Done      -> Done
-    Skip g'   -> Skip (n, g')
-    Some x g' -> if n <= 0 then Some x (0, g') else Skip (n - 1, g')
+drop n s | n <= 0 = s
+drop n (Stream nx !sg) = drop' n sg where
+  {-# INLINE [0] drop' #-}
+  drop' n !g | n <= 0 = Stream nx g
+  drop' n !g = case nx g of
+    Done      -> mempty
+    Skip g'   -> drop' (n - 1) g'
+    Some _ g' -> drop' (n - 1) g'
 
 -- | \(\mathcal{O}(n)\). Produce a new stream consisting of only the next \mathcal{n} available elements after dropping \mathcal{i}. Equivalent to @take n . drop i@.
 {-# INLINE [1] slice #-}
@@ -417,13 +424,12 @@ takeWhile f (Stream nx sg) = Stream nx' sg where
 
 {-# INLINE [1] dropWhile #-}
 dropWhile :: (a -> Bool) -> Stream a -> Stream a
-dropWhile f (Stream nx sg) = Stream nx' (Left sg) where
-  {-# INLINE [0] nx' #-}
-  nx' (Right !g) = Right <$> nx g
-  nx' (Left  !g) = case nx g of
-    Done      -> Done
-    Skip g'   -> Skip (Left g')
-    Some x g' -> if f x then Skip (Left g') else Some x (Right g')
+dropWhile f (Stream nx sg) = dropWhile' sg where
+  {-# INLINE [0] dropWhile' #-}
+  dropWhile' !g = case nx g of
+    Done      -> mempty
+    Skip g'   -> dropWhile' g'
+    Some x g' -> if f x then dropWhile' g' else Stream nx g
 
 span :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
 span f s = (takeWhile f s, dropWhile f s)
@@ -440,11 +446,11 @@ spanMaybe s@(Stream nx sg) = (Stream take' sg, Stream drop' (Left sg)) where
   drop' (Right !g)  = Right <$> nx g
   drop' (Left  !g) = case nx g of
     Done      -> Done
-    Skip g'   -> Skip (Left g')
+    Skip g'   -> drop' (Left g')
     Some (Just _) g' -> Skip (Left g')
     Some Nothing  g' -> case nx g' of
       Done      -> Done
-      Skip g'   -> Skip (Right g')
+      Skip g'   -> drop' (Right g')
       Some x g' -> Some x (Right g')
 
 {-# INLINE [1] groupEvery #-}
@@ -456,6 +462,30 @@ groupEvery i s = Stream nx s where
 
 
 
+
+
+
+
+
+
+--------------------------------------------------
+-- Folds
+--------------------------------------------------
+
+{-# INLINE [1] intersperse #-}
+intersperse :: a -> Stream a -> Stream a
+intersperse e (Stream nx sg) = Stream nx' (False, sg) where
+  {-# INLINE [0] nx' #-}
+  nx' (False, !g) = case nx g of
+    Done      -> Done
+    Skip g'   -> Skip (False, g')
+    Some x g' -> nx2 x g'
+  nx' (True, !g) = Some e (False, g)
+  {-# INLINE [0] nx2 #-}
+  nx2 x !g = case nx g of
+    Done      -> Some x (False, g)
+    Skip g'   -> nx2 x g'
+    Some _ g' -> Some x (True, g)
 
 {-# INLINE [1] intercalate #-}
 intercalate :: Stream a -> Stream (Stream a) -> Stream a
@@ -492,6 +522,21 @@ transpose (Stream nx sg) = Stream nx' (init sg) where
     Done      -> nx' (prev, nxt, g)
     Skip g'   -> Skip (prev, Stream ix g' <| nxt, g)
     Some x g' -> Some (Just x) (prev |> Stream ix g', nxt, g)
+
+foldPairs :: (b -> a -> a -> b) -> b -> Stream a -> b
+foldPairs f z (Stream nx sg) = fp z sg where
+  fp z' !g = case nx g of
+    Done      -> z'
+    Skip g'   -> let !fz = fp z' g' in fz
+    Some x g' -> let !fxz = fp1 z' x g' in fxz
+  fp1 z' x !g = case nx g of
+    Done      -> z'
+    Skip g'   -> let !fz = fp1 z' x g' in fz
+    Some y g' -> let !fxy = f z' x y; !fxyz = fp1 fxy y g' in fxyz
+
+
+
+
 
 concat :: Stream (Stream a) -> Stream a
 concat (Stream nx sg) = Stream (concat' nx id) (Nothing, sg)
