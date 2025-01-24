@@ -13,9 +13,10 @@ library
   default-language: Haskell2010
   exposed-modules:
     Data.Stream
-    Data.Stream.Monadic
-    Data.Stream.Step
-  build-depends:    base >=4.7 && <5
+  build-depends:
+      base >=4.7 && <5
+    , deepseq >=1.4 && <2
+    , containers >=0.6 && <1
   ghc-options:      -w
 
 test-suite stream-test
@@ -24,9 +25,9 @@ test-suite stream-test
   main-is:          Test.hs
   other-modules:
     Data.Stream
-    Data.Stream.Monadic
-    Data.Stream.Step
   build-depends:
       base >=4.7 && <5
+    , deepseq >=1.4 && <2
+    , containers >=0.7 && <1
     , tasty >=1.5 && <2
     , tasty-hunit >=0.10.1 && <0.11
