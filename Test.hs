@@ -14,6 +14,7 @@ import qualified Data.Sequence as Seq
 main = defaultMain $ testGroup "Stream"
   [ conversions
   , predicates
+  , functor
   ]
 
 done :: Stream Int
@@ -44,4 +45,9 @@ predicates = testGroup "Predicates"
   [ testCase "Equality: Done" $ (done == done) @?= True
   , testCase "Equality: Singleton" $ (oneFiveS == done) @?= False
   , testCase "Equality: Equals" $ (oneFiveS == oneFiveS) @?= True
+  ]
+
+functor = testGroup "Functor"
+  [ testCase "Identity" $ (toList $ fmap id oneFiveS) @?= oneFive
+  , testCase "Composition" $ (fmap ((+) 1 . (*) 2) oneFiveS) @?= (fmap ((+) 1) . fmap ((*) 2) $ oneFiveS)
   ]

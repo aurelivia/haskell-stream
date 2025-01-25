@@ -16,12 +16,18 @@ import Prelude
 import GHC.Exts (IsList(..), IsString(..))
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
+import Data.Bifunctor (first)
 
 data Stream a = Done | forall g. Skip !(g -> Stream a) !g | forall g. Some a !(g -> Stream a) !g
 
 --------------------------------------------------
 -- Constructors
 --------------------------------------------------
+
+instance Functor Stream where
+  fmap _ Done           = Done
+  fmap f (Skip nx sg)   = Skip (fmap f . nx) sg
+  fmap f (Some x nx sg) = Some (f x) (fmap f . nx) sg
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
@@ -45,6 +51,13 @@ toSeq Done           = Seq.Empty
 toSeq (Skip nx sg)   = toSeq (nx sg)
 toSeq (Some x nx sg) = x <| toSeq (nx sg)
 
+instance Show a => Show (Stream a) where
+  {-# INLINE [0] showsPrec #-}
+  showsPrec p = showsPrec p . toList
+
+instance Read a => Read (Stream a) where
+  {-# INLINE [0] readsPrec #-}
+  readsPrec p = map (first fromList) . readsPrec p
 
 
 
