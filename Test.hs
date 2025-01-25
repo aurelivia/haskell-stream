@@ -35,7 +35,8 @@ oneFive = [ 1, 2, 3, 4, 5 ]
 
 {-# INLINE oneFiveS #-}
 oneFiveS :: Stream Int
-oneFiveS = fromList oneFive
+-- oneFiveS = fromList oneFive
+oneFiveS = (fromList [ 1, 2 ]) <> S.Skip id (fromList [ 3, 4 ]) <> S.Skip id (pure 5)
 
 {-# INLINE oneFiveSeq #-}
 oneFiveSeq :: Seq Int

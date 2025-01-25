@@ -34,7 +34,7 @@ data Stream a = Done | forall g. Skip !(g -> Stream a) !g | forall g. Some a !(g
 instance Semigroup (Stream a) where
   x <> Done           = x
   Done <> y           = y
-  (Skip nx xg) <> y   = let !x' = nx xg in x' <> y
+  (Skip nx xg) <> y   = let !x' = nx xg in Skip (x' <>) y
   (Some x nx xg) <> y = let !x' = nx xg in Some x (x' <>) y
 
 instance Monoid (Stream a) where
@@ -42,7 +42,7 @@ instance Monoid (Stream a) where
 
 instance Functor Stream where
   fmap _ Done           = Done
-  fmap f (Skip nx xg)   = let !x' = nx xg in fmap f x'
+  fmap f (Skip nx xg)   = Skip (fmap f . nx) xg
   fmap f (Some x nx xg) = Some (f x) (fmap f . nx) xg
 
 instance Applicative Stream where
@@ -50,14 +50,13 @@ instance Applicative Stream where
 
   liftA2 _ Done _ = Done
   liftA2 _ _ Done = Done
-  liftA2 f x y    = liftA2' f (x, y, y)
-
-liftA2' :: (a -> b -> c) -> (Stream a, Stream b, Stream b) -> Stream c
-liftA2' _ (Done, _, _)                        = Done
-liftA2' f (Skip nx xg, Done, ys)              = let !x' = nx xg in Skip (liftA2' f) (x', Done, ys)
-liftA2' f (Some _ nx xg, Done, ys)            = let !x' = nx xg in liftA2' f (x', ys, ys)
-liftA2' f (x, Skip ny yg, ys)                 = let !y' = ny yg in Skip (liftA2' f) (x, y', ys)
-liftA2' f (x'@(Some x _ _), Some y ny yg, ys) = let !y' = ny yg in Some (f x y) (liftA2' f) (x', y', ys)
+  liftA2 f x y    = liftA2' f (x, y, y) where
+    liftA2' :: (a -> b -> c) -> (Stream a, Stream b, Stream b) -> Stream c
+    liftA2' _ (Done, _, _)                        = Done
+    liftA2' f (Skip nx xg, y, ys)                 = let !x' = nx xg in Skip (liftA2' f) (x', y, ys)
+    liftA2' f (Some _ nx xg, Done, ys)            = let !x' = nx xg; !l = liftA2' f (x', ys, ys) in l
+    liftA2' f (x, Skip ny yg, ys)                 = let !y' = ny yg in Skip (liftA2' f) (x, y', ys)
+    liftA2' f (x'@(Some x _ _), Some y ny yg, ys) = let !y' = ny yg in Some (f x y) (liftA2' f) (x', y', ys)
 
 instance Alternative Stream where
   empty = mempty
@@ -65,7 +64,7 @@ instance Alternative Stream where
 
 instance Monad Stream where
   Done >>= _           = Done
-  (Skip nx xg) >>= f   = let !x' = nx xg in x' >>= f
+  (Skip nx xg) >>= f   = let !x' = nx xg in Skip (>>= f) x'
   (Some x nx xg) >>= f = let !fx = f x; x' = nx xg in fx <> (x' >>= f)
 
 instance MonadPlus Stream
@@ -127,7 +126,7 @@ cycle Done = Done
 cycle xs   = cycle' (xs, xs) where
   cycle' :: (Stream a, Stream a) -> Stream a
   cycle' (Done, xs)         = cycle' (xs, xs)
-  cycle' (Skip nx xg, xs)   = let !x' = nx xg in cycle' (x', xs)
+  cycle' (Skip nx xg, xs)   = let !c = cycle' (nx xg, xs) in c
   cycle' (Some x nx xg, xs) = let !x' = nx xg in Some x cycle' (x', xs)
 
 
@@ -219,5 +218,5 @@ instance Foldable Stream where
   foldl f z (Some x nx xg) = let !x' = nx xg in foldl f (f z x) x'
 
   foldl' _ z Done           = z
-  foldl' f z (Skip nx xg)   = let !x' = nx xg; !fld = foldl' f z x' in fld
-  foldl' f z (Some x nx xg) = let !x' = nx xg; !fzx = f z x; !fld = foldl' f fzx x' in fld
+  foldl' f z (Skip nx xg)   = let !fld = foldl' f z (nx xg) in fld
+  foldl' f z (Some x nx xg) = let !fzx = f z x; !fld = foldl' f fzx (nx xg) in fld
