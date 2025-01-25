@@ -24,6 +24,15 @@ data Stream a = Done | forall g. Skip !(g -> Stream a) !g | forall g. Some a !(g
 -- Constructors
 --------------------------------------------------
 
+instance Semigroup (Stream a) where
+  x <> Done           = x
+  Done <> y           = y
+  (Skip nx sg) <> y   = let !x' = nx sg in x' <> y
+  (Some x nx sg) <> y = let !x' = nx sg in Some x (x' <>) y
+
+instance Monoid (Stream a) where
+  mempty = Done
+
 instance Functor Stream where
   fmap _ Done           = Done
   fmap f (Skip nx sg)   = Skip (fmap f . nx) sg

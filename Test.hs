@@ -14,12 +14,17 @@ import qualified Data.Sequence as Seq
 main = defaultMain $ testGroup "Stream"
   [ conversions
   , predicates
+  , semigroup
   , functor
   , applicative
   ]
 
 done :: Stream Int
 done = S.Done
+
+{-# INLINE toStream #-}
+toStream :: [a] -> Stream a
+toStream = fromList
 
 {-# INLINE oneFive #-}
 oneFive :: [Int]
@@ -33,9 +38,21 @@ oneFiveS = fromList oneFive
 oneFiveSeq :: Seq Int
 oneFiveSeq = fromList oneFive
 
-{-# INLINE toStream #-}
-toStream :: [a] -> Stream a
-toStream = fromList
+{-# INLINE sixTen #-}
+sixTen :: [Int]
+sixTen = [ 6, 7, 8, 9, 10 ]
+
+{-# INLINE sixTenS #-}
+sixTenS :: Stream Int
+sixTenS = fromList sixTen
+
+{-# INLINE elvFif #-}
+elvFif :: [Int]
+elvFif = [ 11, 12, 13, 14, 15 ]
+
+{-# INLINE elvFifS #-}
+elvFifS :: Stream Int
+elvFifS = fromList elvFif
 
 conversions = testGroup "Conversions"
   [ testCase "To/From Lists" $ (toList . toStream) oneFive @?= oneFive
@@ -46,6 +63,14 @@ predicates = testGroup "Predicates"
   [ testCase "Equality: Done" $ (done == done) @?= True
   , testCase "Equality: Singleton" $ (oneFiveS == done) @?= False
   , testCase "Equality: Equals" $ (oneFiveS == oneFiveS) @?= True
+  ]
+
+semigroup = testGroup "Semigroup"
+  [ testCase "Two Empty" $ (toList $ (toStream []) <> (toStream @[Int] [])) @?= []
+  , testCase "Left Full" $ (toList $ oneFiveS <> (toStream [])) @?= oneFive
+  , testCase "Rght Full" $ (toList $ (toStream []) <> oneFiveS) @?= oneFive
+  , testCase "Both Full" $ (toList $ oneFiveS <> oneFiveS) @?= oneFive ++ oneFive
+  , testCase "Associativity" $ (oneFiveS <> (sixTenS <> elvFifS)) @?= ((oneFiveS <> sixTenS) <> elvFifS)
   ]
 
 functor = testGroup "Functor"
