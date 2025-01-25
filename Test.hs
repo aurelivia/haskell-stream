@@ -15,6 +15,7 @@ main = defaultMain $ testGroup "Stream"
   [ conversions
   , predicates
   , functor
+  , applicative
   ]
 
 done :: Stream Int
@@ -50,4 +51,19 @@ predicates = testGroup "Predicates"
 functor = testGroup "Functor"
   [ testCase "Identity" $ (toList $ fmap id oneFiveS) @?= oneFive
   , testCase "Composition" $ (fmap ((+) 1 . (*) 2) oneFiveS) @?= (fmap ((+) 1) . fmap ((*) 2) $ oneFiveS)
+  ]
+
+timesTwo :: Stream (Int -> Int)
+timesTwo = pure $ (*) 2
+
+timesFour :: Stream (Int -> Int)
+timesFour = pure $ (*) 4
+
+applicative = testGroup "Applicative"
+  [ testCase "pure" $ toList (pure @Stream 1) @?= [ 1 ]
+  , testCase "Identity" $ (toList $ pure id <*> oneFiveS) @?= oneFive
+  , testCase "Composition" $ (pure (.) <*> timesTwo <*> timesFour <*> oneFiveS) @?= (timesTwo <*> (timesFour <*> oneFiveS))
+  , testCase "Homomorphism" $ (timesTwo <*> pure @Stream 2) @?= (pure @Stream 4)
+  , testCase "Interchange" $ (timesTwo <*> pure @Stream 2) @?= (pure ($ 2) <*> timesTwo)
+  , testCase "Functor" $ (fmap ((*) 2) oneFiveS) @?= (pure ((*) 2) <*> oneFiveS)
   ]

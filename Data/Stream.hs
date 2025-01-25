@@ -29,6 +29,20 @@ instance Functor Stream where
   fmap f (Skip nx sg)   = Skip (fmap f . nx) sg
   fmap f (Some x nx sg) = Some (f x) (fmap f . nx) sg
 
+instance Applicative Stream where
+  pure x = Some x id Done
+
+  liftA2 _ Done _ = Done
+  liftA2 _ _ Done = Done
+  liftA2 f x y    = liftA2' f (x, y, y)
+
+liftA2' :: (a -> b -> c) -> (Stream a, Stream b, Stream b) -> Stream c
+liftA2' _ (Done, _, _)                        = Done
+liftA2' f (Skip nx xg, Done, ys)              = let !x' = nx xg in Skip (liftA2' f) (x', Done, ys)
+liftA2' f (Some _ nx xg, Done, ys)            = let !x' = nx xg in liftA2' f (x', ys, ys)
+liftA2' f (x, Skip ny yg, ys)                 = let !y' = ny yg in Skip (liftA2' f) (x, y', ys)
+liftA2' f (x'@(Some x _ _), Some y ny yg, ys) = let !fxy = f x y; !y' = ny yg in Some fxy (liftA2' f) (x', y', ys)
+
 instance IsList (Stream a) where
   type Item (Stream a) = a
 
