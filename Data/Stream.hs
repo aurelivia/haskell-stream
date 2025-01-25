@@ -9,15 +9,22 @@ module Data.Stream (
   -- ** Stream
   Stream(..)
   -- ** Constructors
-  , fromSeq, toSeq
+  , cons, snoc, fromSeq, toSeq, repeat, cycle
+  -- ** Accessors
+  , head, headElse, last, lastElse, uncons, (!?), length, done
+  -- ** Slices
+  , tail, init, take, drop, slice, takeWhile, dropWhile, span
   ) where
 
-import Prelude
+import Prelude hiding
+  ( cycle, drop, dropWhile, head, init, last, length, repeat, span, tail, take, takeWhile
+  )
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
 import Data.Bifunctor (first)
 import Data.Foldable (Foldable(foldr', foldl'))
+import Data.Maybe (maybe, fromMaybe, isJust)
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
 import GHC.Exts (IsList(..), IsString(..))
@@ -74,6 +81,11 @@ instance MonadFail Stream where
 -- Constructors
 --------------------------------------------------
 
+cons :: a -> Stream a -> Stream a
+cons x = Some x id
+
+snoc :: Stream a -> a -> Stream a
+snoc xs x = xs <> pure x
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
@@ -104,6 +116,71 @@ instance Show a => Show (Stream a) where
 instance Read a => Read (Stream a) where
   {-# INLINE [0] readsPrec #-}
   readsPrec p = map (first fromList) . readsPrec p
+
+-- | Creates a stream consisting of a single element repeated infinitely.
+repeat :: a -> Stream a
+repeat x = Some x repeat x
+
+-- | Turns a finite list into an infinite one by repeating it.
+cycle :: Stream a -> Stream a
+cycle Done = Done
+cycle xs   = cycle' (xs, xs) where
+  cycle' :: (Stream a, Stream a) -> Stream a
+  cycle' (Done, xs)         = cycle' (xs, xs)
+  cycle' (Skip nx xg, xs)   = let !x' = nx xg in cycle' (x', xs)
+  cycle' (Some x nx xg, xs) = let !x' = nx xg in Some x cycle' (x', xs)
+
+
+
+
+
+--------------------------------------------------
+-- Accessors
+--------------------------------------------------
+
+-- | \(\mathcal{O}(1)\) (Skips notwithstanding). Retrieve the first element available in a stream, or Nothing if there isn't one.
+head :: Stream a -> Maybe a
+head Done         = Nothing
+head (Skip nx xg) = let !h = head (nx xg) in h
+head (Some x _ _) = Just x
+
+-- | \(\mathcal{O}(1)\). Retrieve the first element available in a stream, or a provided default if there isn't one.
+headElse :: a -> Stream a -> a
+headElse e = fromMaybe e . head
+
+last :: Stream a -> Maybe a
+last Done = Nothing
+last (Skip nx xg) = let !l = last (nx xg) in l
+last (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> Just x
+  _    -> let !l = last x' in l
+
+lastElse :: a -> Stream a -> a
+lastElse e = fromMaybe e . last
+
+uncons :: Stream a -> Maybe (a, Stream a)
+uncons Done           = Nothing
+uncons (Skip nx xg)   = let !u = uncons (nx xg) in u
+uncons (Some x nx xg) = let !x' = nx xg in Just (x, x')
+
+-- | \(\mathcal{O}(n)\). Retrieve the \mathcal{n}th available element, or Nothing if none exists.
+(!?) :: Stream a -> Int -> Maybe a
+infixl 9 !?
+Done !? _           = Nothing
+(Skip nx xg) !? i   = let !n = nx xg !? i in n
+(Some x nx xg) !? i
+  | i < 0     = Nothing
+  | i == 0    = Just x
+  | otherwise = let !n = nx xg !? (i - 1) in n
+
+length :: Stream a -> Int
+length = foldl' (\l x -> x `seq` l + 1) 0
+
+done :: Stream a -> Bool
+done Done         = True
+done (Skip nx xg) = let !d = done (nx xg) in d
+done _            = False
+
 
 
 
