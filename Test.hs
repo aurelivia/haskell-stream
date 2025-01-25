@@ -18,9 +18,10 @@ main = defaultMain $ testGroup "Stream"
   , functor
   , applicative
   , monad
-  , foldable
   , slices
   , predicates
+  , folds
+  , maps
   ]
 
 done :: Stream Int
@@ -116,13 +117,6 @@ monad = testGroup "Monad"
   , testCase "Pointless" $ (oneFiveS >> sixTenS) @?= (oneFiveS *> sixTenS)
   ]
 
-foldable = testGroup "Foldable"
-  [ testCase "foldr" $ foldr (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
-  , testCase "foldr'" $ foldr' (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
-  , testCase "foldl" $ foldl (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
-  , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
-  ]
-
 accessors = testGroup "Accessors"
  [ testCase "Head" $ (S.head oneFiveS) @?= Just 1
  , testCase "Head Empty" $ (S.head done) @?= Nothing
@@ -162,4 +156,63 @@ predicates = testGroup "Predicates"
   [ testCase "Equality: Done" $ (done == done) @?= True
   , testCase "Equality: Singleton" $ (oneFiveS == done) @?= False
   , testCase "Equality: Equals" $ (oneFiveS == oneFiveS) @?= True
+  ]
+
+folds = testGroup "Folds"
+  [ testCase "foldr" $ foldr (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldr'" $ foldr' (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldl" $ foldl (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
+  , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
+  , testCase "intersperse" $ (toList $ S.intersperse 1 oneFiveS) @?= (L.intersperse 1 oneFive)
+  , intercalate
+  , transpose
+  ]
+
+space :: [Int]
+space = P.take 3 $ P.repeat 9
+loopy :: [[Int]]
+loopy = P.take 3 $ P.repeat oneFive
+spaceS :: Stream Int
+spaceS = S.take 3 $ S.repeat 9
+loopyS :: Stream (Stream Int)
+loopyS = S.take 3 $ S.repeat oneFiveS
+
+intercalate = testCase "intercalate" $ (toList $ S.intercalate spaceS loopyS) @?= (L.intercalate space loopy)
+
+twoD :: Stream (Stream Int)
+twoD = fromList
+  [ fromList [ 11, 12, 13, 14, 15 ]
+  , fromList [ 21, 22, 23, 24, 25 ]
+  , fromList [ 31, 32, 33, 34, 35 ]
+  , mempty
+  , fromList [ 41, 42, 43, 44, 45 ]
+  , fromList [ 51, 52, 53, 54, 55 ]
+  ]
+
+transposed :: Stream (Stream Int)
+transposed = fromList
+  [ fromList [ 11, 21, 31, 41, 51 ]
+  , fromList [ 12, 22, 32, 42, 52 ]
+  , fromList [ 13, 23, 33, 43, 53 ]
+  , fromList [ 14, 24, 34, 44, 54 ]
+  , fromList [ 15, 25, 35, 45, 55 ]
+  ]
+
+transpose = testCase "Transpose" $ S.transpose twoD @?= transposed
+
+heads :: Stream Int
+heads = fromList [ 11, 21, 31, 41, 51 ]
+
+tails :: Stream (Stream Int)
+tails = fromList
+  [ fromList [ 12, 13, 14, 15 ]
+  , fromList [ 22, 23, 24, 25 ]
+  , fromList [ 32, 33, 34, 35 ]
+  , fromList [ 42, 43, 44, 45 ]
+  , fromList [ 52, 53, 54, 55 ]
+  ]
+
+maps = testGroup "Maps"
+  [ testCase "Heads" $ (S.heads twoD) @?= heads
+  , testCase "Tails" $ (S.tails twoD) @?= tails
   ]

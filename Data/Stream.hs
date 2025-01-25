@@ -14,6 +14,10 @@ module Data.Stream (
   , head, headElse, last, lastElse, uncons, (!?), length, done
   -- ** Slices
   , tail, init, take, drop, slice, takeWhile, dropWhile, span
+  -- ** Folds
+  , foldr, foldr', foldl, foldl', intersperse, intercalate, transpose
+  -- ** Maps
+  , heads, tails
   ) where
 
 import Prelude hiding
@@ -231,6 +235,9 @@ dropWhile f x'@(Some x nx xg) = if f x then Skip (dropWhile f) (nx xg) else x'
 span :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
 span f s = (takeWhile f s, dropWhile f s)
 
+-- spanMaybe :: Stream (Maybe a) -> (Stream a, Stream (Maybe a))
+
+
 
 
 
@@ -241,10 +248,10 @@ span f s = (takeWhile f s, dropWhile f s)
 
 instance Eq a => Eq (Stream a) where
   Done == Done                     = True
-  Done == _                        = False
-  _ == Done                        = False
   (Skip nx xg) == y                = let !x' = nx xg in x' == y
   x == (Skip ny yg)                = let !y' = ny yg in x == y'
+  Done == _                        = False
+  _ == Done                        = False
   (Some x nx xg) == (Some y ny yg) = (x == y) && let !x' = nx xg; !y' = ny yg in x' == y'
 
 
@@ -271,3 +278,43 @@ instance Foldable Stream where
   foldl' _ z Done           = z
   foldl' f z (Skip nx xg)   = let !fld = foldl' f z (nx xg) in fld
   foldl' f z (Some x nx xg) = let !fzx = f z x; !fld = foldl' f fzx (nx xg) in fld
+
+intersperse :: a -> Stream a -> Stream a
+intersperse e Done           = Done
+intersperse e (Skip nx xg)   = Skip (intersperse e) (nx xg)
+intersperse e (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> Some x id Done
+  _    -> Some x id (Some e (intersperse e) x')
+
+intercalate :: Stream a -> Stream (Stream a) -> Stream a
+intercalate e Done           = Done
+intercalate e (Skip nx xg)   = Skip (intercalate e) (nx xg)
+intercalate e (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> x
+  _    -> x <> e <> intercalate e x'
+
+transpose :: Stream (Stream a) -> Stream (Stream a)
+transpose Done         = Done
+transpose (Skip nx xg) = Skip transpose (nx xg)
+transpose xs           = Some (heads xs) transpose (tails xs)
+
+
+
+
+--------------------------------------------------
+-- Maps
+--------------------------------------------------
+
+heads :: Stream (Stream a) -> Stream a
+heads Done           = Done
+heads (Skip nx xg)   = Skip heads (nx xg)
+heads (Some x nx xg) = case head x of
+  Nothing -> Skip heads (nx xg)
+  Just x' -> Some x' heads (nx xg)
+
+tails :: Stream (Stream a) -> Stream (Stream a)
+tails Done           = Done
+tails (Skip nx xg)   = Skip tails (nx xg)
+tails (Some x nx xg) = case tail x of
+  Done -> Skip tails (nx xg)
+  x'   -> Some x' tails (nx xg)
