@@ -44,3 +44,19 @@ toSeq :: Stream a -> Seq a
 toSeq Done           = Seq.Empty
 toSeq (Skip nx sg)   = toSeq (nx sg)
 toSeq (Some x nx sg) = x <| toSeq (nx sg)
+
+
+
+
+
+--------------------------------------------------
+-- Predicates
+--------------------------------------------------
+
+instance Eq a => Eq (Stream a) where
+  Done == Done                     = True
+  Done == _                        = False
+  _ == Done                        = False
+  (Skip nx xg) == y                = let !x' = nx xg in x' == y
+  x == (Skip ny yg)                = let !y' = ny yg in x == y'
+  (Some x nx xg) == (Some y ny yg) = (x == y) && let !x' = nx xg; !y' = ny yg in x' == y'

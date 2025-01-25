@@ -13,7 +13,11 @@ import qualified Data.Sequence as Seq
 
 main = defaultMain $ testGroup "Stream"
   [ conversions
+  , predicates
   ]
+
+done :: Stream Int
+done = S.Done
 
 {-# INLINE oneFive #-}
 oneFive :: [Int]
@@ -34,4 +38,10 @@ toStream = fromList
 conversions = testGroup "Conversions"
   [ testCase "To/From Lists" $ (toList . toStream) oneFive @?= oneFive
   , testCase "To/From Sequence" $ (S.toSeq . S.fromSeq) oneFiveSeq @?= oneFiveSeq
+  ]
+
+predicates = testGroup "Predicates"
+  [ testCase "Equality: Done" $ (done == done) @?= True
+  , testCase "Equality: Singleton" $ (oneFiveS == done) @?= False
+  , testCase "Equality: Equals" $ (oneFiveS == oneFiveS) @?= True
   ]
