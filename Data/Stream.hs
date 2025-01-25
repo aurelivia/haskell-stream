@@ -185,6 +185,57 @@ done _            = False
 
 
 --------------------------------------------------
+-- Slices
+--------------------------------------------------
+
+-- | \(\mathcal{O}(1)\). Creates a new stream containing all elements of an existing stream except for first available.
+tail :: Stream a -> Stream a
+tail Done           = Done
+tail (Skip nx xg)   = Skip tail (nx xg)
+tail (Some _ nx xg) = let !x' = nx xg in x'
+
+-- | \(\mathcal{O}(1)\). Creates a new stream containing all elements of an existing stream except the last available before it terminates. If it doesn't terminate then it's identical to the input.
+init :: Stream a -> Stream a
+init Done           = Done
+init (Skip nx xg)   = Skip init (nx xg)
+init (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> Done
+  _    -> Some x init x'
+
+-- | \(\mathcal{O}()\). Produce a new stream consisting of only the first \mathcal{n} elements of a given stream.
+take :: Int -> Stream a -> Stream a
+take _ Done           = Done
+take n (Skip nx xg)   = Skip (take n) (nx xg)
+take n (Some x nx xg) = if n <= 0 then Done else Some x (take (n - 1)) (nx xg)
+
+-- | \(\mathcal{O}(n)\). Produce a new stream consisting of all elements from a given stream except for the first \mathcal{n}.
+drop :: Int -> Stream a -> Stream a
+drop _ Done             = Done
+drop n (Skip nx xg)     = Skip (drop n) (nx xg)
+drop n x@(Some _ nx xg) = if n <= 0 then x else Skip (drop (n - 1)) (nx xg)
+
+-- | \(\mathcal{O}(n)\). Produce a new stream consisting of the elements between \mathcal{s} and \mathcal{e}. Equivalent to @take (e - s) . drop s@
+slice :: Int -> Int -> Stream a -> Stream a
+slice s e = take (e - s) . drop s
+
+takeWhile :: (a -> Bool) -> Stream a -> Stream a
+takeWhile _ Done           = Done
+takeWhile f (Skip nx xg)   = Skip (takeWhile f) (nx xg)
+takeWhile f (Some x nx xg) = if f x then Some x (takeWhile f) (nx xg) else Done
+
+dropWhile :: (a -> Bool) -> Stream a -> Stream a
+dropWhile _ Done              = Done
+dropWhile f (Skip nx xg)      = Skip (dropWhile f) (nx xg)
+dropWhile f x'@(Some x nx xg) = if f x then Skip (dropWhile f) (nx xg) else x'
+
+span :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
+span f s = (takeWhile f s, dropWhile f s)
+
+
+
+
+
+--------------------------------------------------
 -- Predicates
 --------------------------------------------------
 

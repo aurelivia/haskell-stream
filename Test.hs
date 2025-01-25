@@ -19,6 +19,7 @@ main = defaultMain $ testGroup "Stream"
   , applicative
   , monad
   , foldable
+  , slices
   , predicates
   ]
 
@@ -142,6 +143,20 @@ accessors = testGroup "Accessors"
  , testCase "Done" $ (S.done oneFiveS) @?= False
  , testCase "Done Empty" $ (S.done done) @?= True
  ]
+
+sliceList s e = P.take (e - s) . P.drop s
+tupToList (x,y) = (toList x, toList y)
+
+slices = testGroup "Slices"
+  [ testCase "tail" $ toList (S.tail oneFiveS) @?= P.tail oneFive
+  , testCase "init" $ toList (S.init oneFiveS) @?= P.init oneFive
+  , testCase "take" $ toList (S.take 3 oneFiveS) @?= P.take 3 oneFive
+  , testCase "drop" $ toList (S.drop 3 oneFiveS) @?= P.drop 3 oneFive
+  , testCase "slice" $ toList (S.slice 2 2 oneFiveS) @?= sliceList 2 2 oneFive
+  , testCase "takeWhile" $ toList (S.takeWhile (/= 3) oneFiveS) @?= P.takeWhile (/= 3) oneFive
+  , testCase "dropWhile" $ toList (S.dropWhile (/= 3) oneFiveS) @?= P.dropWhile (/= 3) oneFive
+  , testCase "span" $ tupToList (S.span (/= 3) oneFiveS) @?= P.span (/= 3) oneFive
+  ]
 
 predicates = testGroup "Predicates"
   [ testCase "Equality: Done" $ (done == done) @?= True
