@@ -13,30 +13,27 @@ module Data.Stream (
   ) where
 
 import Prelude
-import GHC.Exts (IsList(..), IsString(..))
+import Control.Applicative (Alternative(..))
+import Data.Bifunctor (first)
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
-import Data.Bifunctor (first)
+import GHC.Exts (IsList(..), IsString(..))
 
 data Stream a = Done | forall g. Skip !(g -> Stream a) !g | forall g. Some a !(g -> Stream a) !g
-
---------------------------------------------------
--- Constructors
---------------------------------------------------
 
 instance Semigroup (Stream a) where
   x <> Done           = x
   Done <> y           = y
-  (Skip nx sg) <> y   = let !x' = nx sg in x' <> y
-  (Some x nx sg) <> y = let !x' = nx sg in Some x (x' <>) y
+  (Skip nx xg) <> y   = let !x' = nx xg in x' <> y
+  (Some x nx xg) <> y = let !x' = nx xg in Some x (x' <>) y
 
 instance Monoid (Stream a) where
   mempty = Done
 
 instance Functor Stream where
   fmap _ Done           = Done
-  fmap f (Skip nx sg)   = Skip (fmap f . nx) sg
-  fmap f (Some x nx sg) = Some (f x) (fmap f . nx) sg
+  fmap f (Skip nx xg)   = let !x' = nx xg in fmap f x'
+  fmap f (Some x nx xg) = Some (f x) (fmap f . nx) xg
 
 instance Applicative Stream where
   pure x = Some x id Done
@@ -50,7 +47,25 @@ liftA2' _ (Done, _, _)                        = Done
 liftA2' f (Skip nx xg, Done, ys)              = let !x' = nx xg in Skip (liftA2' f) (x', Done, ys)
 liftA2' f (Some _ nx xg, Done, ys)            = let !x' = nx xg in liftA2' f (x', ys, ys)
 liftA2' f (x, Skip ny yg, ys)                 = let !y' = ny yg in Skip (liftA2' f) (x, y', ys)
-liftA2' f (x'@(Some x _ _), Some y ny yg, ys) = let !fxy = f x y; !y' = ny yg in Some fxy (liftA2' f) (x', y', ys)
+liftA2' f (x'@(Some x _ _), Some y ny yg, ys) = let !y' = ny yg in Some (f x y) (liftA2' f) (x', y', ys)
+
+instance Alternative Stream where
+  empty = mempty
+  (<|>) = (<>)
+
+instance Monad Stream where
+  Done >>= _           = Done
+  (Skip nx xg) >>= f   = let !x' = nx xg in x' >>= f
+  (Some x nx xg) >>= f = let !fx = f x; x' = nx xg in fx <> (x' >>= f)
+
+
+
+
+
+--------------------------------------------------
+-- Constructors
+--------------------------------------------------
+
 
 instance IsList (Stream a) where
   type Item (Stream a) = a
@@ -59,8 +74,8 @@ instance IsList (Stream a) where
   fromList (x:xs) = Some x fromList xs
 
   toList Done           = []
-  toList (Skip nx sg)   = toList (nx sg)
-  toList (Some x nx sg) = x : toList (nx sg)
+  toList (Skip nx xg)   = toList (nx xg)
+  toList (Some x nx xg) = x : toList (nx xg)
 
 instance IsString (Stream Char) where
   fromString = fromList
@@ -71,8 +86,8 @@ fromSeq (x:<|xs)  = Some x fromSeq xs
 
 toSeq :: Stream a -> Seq a
 toSeq Done           = Seq.Empty
-toSeq (Skip nx sg)   = toSeq (nx sg)
-toSeq (Some x nx sg) = x <| toSeq (nx sg)
+toSeq (Skip nx xg)   = toSeq (nx xg)
+toSeq (Some x nx xg) = x <| toSeq (nx xg)
 
 instance Show a => Show (Stream a) where
   {-# INLINE [0] showsPrec #-}

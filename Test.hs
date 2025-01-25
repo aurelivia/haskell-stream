@@ -17,6 +17,7 @@ main = defaultMain $ testGroup "Stream"
   , semigroup
   , functor
   , applicative
+  , monad
   ]
 
 done :: Stream Int
@@ -85,10 +86,30 @@ timesFour :: Stream (Int -> Int)
 timesFour = pure $ (*) 4
 
 applicative = testGroup "Applicative"
-  [ testCase "pure" $ toList (pure @Stream 1) @?= [ 1 ]
+  [ testCase "Pure" $ toList (pure @Stream 1) @?= [ 1 ]
   , testCase "Identity" $ (toList $ pure id <*> oneFiveS) @?= oneFive
   , testCase "Composition" $ (pure (.) <*> timesTwo <*> timesFour <*> oneFiveS) @?= (timesTwo <*> (timesFour <*> oneFiveS))
   , testCase "Homomorphism" $ (timesTwo <*> pure @Stream 2) @?= (pure @Stream 4)
   , testCase "Interchange" $ (timesTwo <*> pure @Stream 2) @?= (pure ($ 2) <*> timesTwo)
   , testCase "Functor" $ (fmap ((*) 2) oneFiveS) @?= (pure ((*) 2) <*> oneFiveS)
+  ]
+
+repeatFiveTimes :: Int -> Stream Int
+repeatFiveTimes x = fromList [ x, x, x, x, x ]
+-- repeatFiveTimes = S.take 5 . S.repeat
+
+fiveOnes :: Stream Int
+fiveOnes = repeatFiveTimes 1
+
+doubleDouble :: Int -> Stream Int
+doubleDouble x = fromList [ x * 2, x * 2 ]
+
+monad = testGroup "Monad"
+  [ testCase "Return" $ (return @Stream 1) @?= (pure @Stream 1)
+  , testCase "Left Identity" $ (return @Stream 1 >>= repeatFiveTimes) @?= fiveOnes
+  , testCase "Right Identity" $ (fiveOnes >>= return) @?= fiveOnes
+  , testCase "Associativity" $ (pure @Stream 1 >>= (\x -> repeatFiveTimes x >>= doubleDouble)) @?= ((pure @Stream 1 >>= repeatFiveTimes) >>= doubleDouble)
+  , testCase "Functor" $ (fmap (* 2) oneFiveS) @?= (oneFiveS >>= return . (* 2))
+  , testCase "Applicative" $ (timesTwo <*> oneFiveS) @?= (timesTwo >>= (\x -> oneFiveS >>= (\y -> return (x y))))
+  , testCase "Pointless" $ (oneFiveS >> sixTenS) @?= (oneFiveS *> sixTenS)
   ]
