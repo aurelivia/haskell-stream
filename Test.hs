@@ -8,9 +8,11 @@ import qualified Data.List as L
 import Data.Stream (Stream)
 import qualified Data.Stream as S
 import GHC.Exts (toList, fromList)
+import Data.Sequence (Seq(..), ViewR(..), (<|))
+import qualified Data.Sequence as Seq
 
 main = defaultMain $ testGroup "Stream"
-  [ toFromList
+  [ conversions
   ]
 
 {-# INLINE oneFive #-}
@@ -21,8 +23,15 @@ oneFive = [ 1, 2, 3, 4, 5 ]
 oneFiveS :: Stream Int
 oneFiveS = fromList oneFive
 
+{-# INLINE oneFiveSeq #-}
+oneFiveSeq :: Seq Int
+oneFiveSeq = fromList oneFive
+
 {-# INLINE toStream #-}
 toStream :: [a] -> Stream a
 toStream = fromList
 
-toFromList = testCase "To/From Lists" $ (toList . toStream) oneFive @?= oneFive
+conversions = testGroup "Conversions"
+  [ testCase "To/From Lists" $ (toList . toStream) oneFive @?= oneFive
+  , testCase "To/From Sequence" $ (S.toSeq . S.fromSeq) oneFiveSeq @?= oneFiveSeq
+  ]
