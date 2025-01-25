@@ -14,7 +14,10 @@ module Data.Stream (
 
 import Prelude
 import Control.Applicative (Alternative(..))
+import Control.Monad (MonadPlus(..))
+import Control.Monad.Fail (MonadFail(..))
 import Data.Bifunctor (first)
+import Data.Foldable (Foldable(foldr', foldl'))
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
 import GHC.Exts (IsList(..), IsString(..))
@@ -57,6 +60,11 @@ instance Monad Stream where
   Done >>= _           = Done
   (Skip nx xg) >>= f   = let !x' = nx xg in x' >>= f
   (Some x nx xg) >>= f = let !fx = f x; x' = nx xg in fx <> (x' >>= f)
+
+instance MonadPlus Stream
+
+instance MonadFail Stream where
+  fail _ = mempty
 
 
 
@@ -111,3 +119,28 @@ instance Eq a => Eq (Stream a) where
   (Skip nx xg) == y                = let !x' = nx xg in x' == y
   x == (Skip ny yg)                = let !y' = ny yg in x == y'
   (Some x nx xg) == (Some y ny yg) = (x == y) && let !x' = nx xg; !y' = ny yg in x' == y'
+
+
+
+
+
+--------------------------------------------------
+-- Folds
+--------------------------------------------------
+
+instance Foldable Stream where
+  foldr _ z Done           = z
+  foldr f z (Skip nx xg)   = let !x' = nx xg in foldr f z x'
+  foldr f z (Some x nx xg) = let !x' = nx xg in f x $ foldr f z x'
+
+  foldr' _ z Done           = z
+  foldr' f z (Skip nx xg)   = let !fld = foldr' f z (nx xg) in fld
+  foldr' f z (Some x nx xg) = let !fld = foldr' f z (nx xg); !fxz = f x fld in fxz
+
+  foldl _ z Done           = z
+  foldl f z (Skip nx xg)   = let !x' = nx xg in foldl f z x'
+  foldl f z (Some x nx xg) = let !x' = nx xg in foldl f (f z x) x'
+
+  foldl' _ z Done           = z
+  foldl' f z (Skip nx xg)   = let !x' = nx xg; !fld = foldl' f z x' in fld
+  foldl' f z (Some x nx xg) = let !x' = nx xg; !fzx = f z x; !fld = foldl' f fzx x' in fld

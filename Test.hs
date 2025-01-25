@@ -10,6 +10,7 @@ import qualified Data.Stream as S
 import GHC.Exts (toList, fromList)
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
+import Data.Foldable (foldr, foldr', foldl, foldl')
 
 main = defaultMain $ testGroup "Stream"
   [ conversions
@@ -18,6 +19,7 @@ main = defaultMain $ testGroup "Stream"
   , functor
   , applicative
   , monad
+  , foldable
   ]
 
 done :: Stream Int
@@ -112,4 +114,11 @@ monad = testGroup "Monad"
   , testCase "Functor" $ (fmap (* 2) oneFiveS) @?= (oneFiveS >>= return . (* 2))
   , testCase "Applicative" $ (timesTwo <*> oneFiveS) @?= (timesTwo >>= (\x -> oneFiveS >>= (\y -> return (x y))))
   , testCase "Pointless" $ (oneFiveS >> sixTenS) @?= (oneFiveS *> sixTenS)
+  ]
+
+foldable = testGroup "Foldable"
+  [ testCase "foldr" $ foldr (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldr'" $ foldr' (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
+  , testCase "foldl" $ foldl (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
+  , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
   ]
