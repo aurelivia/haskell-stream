@@ -7,27 +7,29 @@
 
 module Data.Stream (
   -- ** Stream
-  Stream(..)
+  Stream(.., (:-))
   -- ** Constructors
-  , cons, snoc, fromSeq, toSeq, repeat, cycle
+  , cons, snoc, fromSeq, toSeq, repeat, repeat', cycle
   -- ** Accessors
-  , head, headElse, last, lastElse, uncons, (!?), length, done
+  , head, headElse, last, lastElse, uncons, (!?), done
   -- ** Slices
   , tail, init, take, drop, slice, takeWhile, dropWhile, span
+  -- ** Predicates
+  , (==), elem, filter, partition
   -- ** Folds
-  , foldr, foldr', foldl, foldl', intersperse, intercalate, transpose
+  , foldr, foldr', foldl, foldl', length
   -- ** Maps
-  , heads, tails
+  , heads, tails, intersperse, intercalate, transpose, padLeft, padRight
   ) where
 
 import Prelude hiding
-  ( cycle, drop, dropWhile, head, init, last, length, repeat, span, tail, take, takeWhile
+  ( cycle, drop, dropWhile, filter, head, init, last, length, repeat, span, tail, take, takeWhile
   )
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))
 import Control.Monad.Fail (MonadFail(..))
 import Data.Bifunctor (first)
-import Data.Foldable (Foldable(foldr', foldl'))
+import Data.Foldable (Foldable(foldr', foldl', elem, length))
 import Data.Maybe (maybe, fromMaybe, isJust)
 import Data.Sequence (Seq(..), ViewR(..), (<|))
 import qualified Data.Sequence as Seq
@@ -90,6 +92,11 @@ cons x = Some x id
 snoc :: Stream a -> a -> Stream a
 snoc xs x = xs <> pure x
 
+infixr 5 :-
+pattern (:-) :: a -> Stream a -> Stream a
+pattern x :- xs <- (uncons -> Just (x, xs)) where
+  x :- xs = cons x xs
+
 instance IsList (Stream a) where
   type Item (Stream a) = a
 
@@ -123,6 +130,11 @@ instance Read a => Read (Stream a) where
 -- | Creates a stream consisting of a single element repeated infinitely.
 repeat :: a -> Stream a
 repeat x = Some x repeat x
+
+repeat' :: Int -> a -> Stream a
+repeat' i x = if i <= 0
+  then Done
+  else Some x (repeat' (i - 1)) x
 
 -- | Turns a finite list into an infinite one by repeating it.
 cycle :: Stream a -> Stream a
@@ -175,9 +187,6 @@ Done !? _           = Nothing
   | i < 0     = Nothing
   | i == 0    = Just x
   | otherwise = let !n = nx xg !? (i - 1) in n
-
-length :: Stream a -> Int
-length = foldl' (\l x -> x `seq` l + 1) 0
 
 done :: Stream a -> Bool
 done Done         = True
@@ -254,6 +263,17 @@ instance Eq a => Eq (Stream a) where
   _ == Done                        = False
   (Some x nx xg) == (Some y ny yg) = (x == y) && let !x' = nx xg; !y' = ny yg in x' == y'
 
+filter :: (a -> Bool) -> Stream a -> Stream a
+filter _ Done = Done
+filter f (Skip nx xg) = Skip (filter f) (nx xg)
+filter f (Some x nx xg) = if f x
+  then Some x (filter f) (nx xg)
+  else Skip (filter f) (nx xg)
+
+partition :: (a -> Bool) -> Stream a -> (Stream a, Stream a)
+partition f xs = (filter f xs, filter (not . f) xs)
+
+
 
 
 
@@ -279,24 +299,6 @@ instance Foldable Stream where
   foldl' f z (Skip nx xg)   = let !fld = foldl' f z (nx xg) in fld
   foldl' f z (Some x nx xg) = let !fzx = f z x; !fld = foldl' f fzx (nx xg) in fld
 
-intersperse :: a -> Stream a -> Stream a
-intersperse e Done           = Done
-intersperse e (Skip nx xg)   = Skip (intersperse e) (nx xg)
-intersperse e (Some x nx xg) = let !x' = nx xg in case x' of
-  Done -> Some x id Done
-  _    -> Some x id (Some e (intersperse e) x')
-
-intercalate :: Stream a -> Stream (Stream a) -> Stream a
-intercalate e Done           = Done
-intercalate e (Skip nx xg)   = Skip (intercalate e) (nx xg)
-intercalate e (Some x nx xg) = let !x' = nx xg in case x' of
-  Done -> x
-  _    -> x <> e <> intercalate e x'
-
-transpose :: Stream (Stream a) -> Stream (Stream a)
-transpose Done         = Done
-transpose (Skip nx xg) = Skip transpose (nx xg)
-transpose xs           = Some (heads xs) transpose (tails xs)
 
 
 
@@ -318,3 +320,30 @@ tails (Skip nx xg)   = Skip tails (nx xg)
 tails (Some x nx xg) = case tail x of
   Done -> Skip tails (nx xg)
   x'   -> Some x' tails (nx xg)
+
+intersperse :: a -> Stream a -> Stream a
+intersperse e Done           = Done
+intersperse e (Skip nx xg)   = Skip (intersperse e) (nx xg)
+intersperse e (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> Some x id Done
+  _    -> Some x id (Some e (intersperse e) x')
+
+intercalate :: Stream a -> Stream (Stream a) -> Stream a
+intercalate e Done           = Done
+intercalate e (Skip nx xg)   = Skip (intercalate e) (nx xg)
+intercalate e (Some x nx xg) = let !x' = nx xg in case x' of
+  Done -> x
+  _    -> x <> e <> intercalate e x'
+
+transpose :: Stream (Stream a) -> Stream (Stream a)
+transpose Done         = Done
+transpose (Skip nx xg) = Skip transpose (nx xg)
+transpose xs           = Some (heads xs) transpose (tails xs)
+
+padLeft :: Int -> a -> Stream a -> Stream a
+padLeft i e xs = if i <= 0
+  then xs
+  else Some e (padLeft (i - 1) e) xs
+
+padRight :: Int -> a -> Stream a -> Stream a
+padRight i e xs = xs <> repeat' i e

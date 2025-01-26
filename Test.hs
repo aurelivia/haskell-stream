@@ -18,6 +18,7 @@ main = defaultMain $ testGroup "Stream"
   , functor
   , applicative
   , monad
+  , accessors
   , slices
   , predicates
   , folds
@@ -66,6 +67,7 @@ constructors = testGroup "Constructors"
   , testCase "To/From Lists" $ (toList . toStream) oneFive @?= oneFive
   , testCase "To/From Sequence" $ (S.toSeq . S.fromSeq) oneFiveSeq @?= oneFiveSeq
   , testCase "Repeat" $ (P.take 10 $ toList $ S.repeat 1) @?= (P.take 10 $ P.repeat 1)
+  , testCase "Repeat'" $ (S.repeat' 5 1) @?= (toStream [ 1, 1, 1, 1, 1 ])
   , testCase "Cycle" $ (P.take 10 $ toList $ S.cycle oneFiveS) @?= (P.take 10 $ P.cycle oneFive)
   ]
 
@@ -152,10 +154,17 @@ slices = testGroup "Slices"
   , testCase "span" $ tupToList (S.span (/= 3) oneFiveS) @?= P.span (/= 3) oneFive
   ]
 
+isEven :: Int -> Bool
+isEven x = x `rem` 2 == 0
+
 predicates = testGroup "Predicates"
-  [ testCase "Equality: Done" $ (done == done) @?= True
-  , testCase "Equality: Singleton" $ (oneFiveS == done) @?= False
-  , testCase "Equality: Equals" $ (oneFiveS == oneFiveS) @?= True
+  [ testCase "Equality Done" $ (done == done) @?= True
+  , testCase "Equality Singleton" $ (oneFiveS == done) @?= False
+  , testCase "Equality Equals" $ (oneFiveS == oneFiveS) @?= True
+  , testCase "Elem True" $ (S.elem 3 oneFiveS) @?= True
+  , testCase "Elem False" $ (S.elem 7 oneFiveS) @?= False
+  , testCase "Filter" $ (S.filter isEven oneFiveS) @?= fromList [ 2, 4 ]
+  , testCase "Partition" $ (S.partition isEven oneFiveS) @?= (fromList [ 2, 4 ], fromList [ 1, 3, 5 ])
   ]
 
 folds = testGroup "Folds"
@@ -163,9 +172,27 @@ folds = testGroup "Folds"
   , testCase "foldr'" $ foldr' (\x xs -> show x ++ xs) "" oneFiveS @?= "12345"
   , testCase "foldl" $ foldl (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
   , testCase "foldl'" $ foldl' (\xs x -> show x ++ xs) "" oneFiveS @?= "54321"
+  ]
+
+heads = fromList [ 11, 21, 31, 41, 51 ]
+
+tails :: Stream (Stream Int)
+tails = fromList
+  [ fromList [ 12, 13, 14, 15 ]
+  , fromList [ 22, 23, 24, 25 ]
+  , fromList [ 32, 33, 34, 35 ]
+  , fromList [ 42, 43, 44, 45 ]
+  , fromList [ 52, 53, 54, 55 ]
+  ]
+
+maps = testGroup "Maps"
+  [ testCase "Heads" $ (S.heads twoD) @?= heads
+  , testCase "Tails" $ (S.tails twoD) @?= tails
   , testCase "intersperse" $ (toList $ S.intersperse 1 oneFiveS) @?= (L.intersperse 1 oneFive)
   , intercalate
   , transpose
+  , testCase "padLeft" $ (toList $ S.padLeft 5 0 oneFiveS) @?= [ 0, 0, 0, 0, 0, 1, 2, 3, 4, 5 ]
+  , testCase "padRight" $ (toList $ S.padRight 5 0 oneFiveS) @?= [ 1, 2, 3, 4, 5, 0, 0, 0, 0, 0 ]
   ]
 
 space :: [Int]
@@ -199,20 +226,3 @@ transposed = fromList
   ]
 
 transpose = testCase "Transpose" $ S.transpose twoD @?= transposed
-
-heads :: Stream Int
-heads = fromList [ 11, 21, 31, 41, 51 ]
-
-tails :: Stream (Stream Int)
-tails = fromList
-  [ fromList [ 12, 13, 14, 15 ]
-  , fromList [ 22, 23, 24, 25 ]
-  , fromList [ 32, 33, 34, 35 ]
-  , fromList [ 42, 43, 44, 45 ]
-  , fromList [ 52, 53, 54, 55 ]
-  ]
-
-maps = testGroup "Maps"
-  [ testCase "Heads" $ (S.heads twoD) @?= heads
-  , testCase "Tails" $ (S.tails twoD) @?= tails
-  ]
